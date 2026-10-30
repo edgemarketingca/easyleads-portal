@@ -45,6 +45,10 @@
     try { fetch(API, { method: 'POST', body: body, mode: 'no-cors', keepalive: true, headers: { 'Content-Type': 'text/plain;charset=UTF-8' } }); } catch (e) {}
   }
 
+  /* A heartbeat at most every 12 hours per visitor, so the console can show the snippet is installed
+     and reporting even before the first lead. It carries no visitor details. */
+  try { var lp = Number(localStorage.getItem('el_ping') || 0); if (Date.now() - lp > 432e5) { localStorage.setItem('el_ping', String(Date.now())); setTimeout(function () { send({ t: 'ping' }); }, 1500); } } catch (e) {}
+
   /* ---------- forms ---------- */
   var SKIP = /pass|card|cc-?num|cvv|cvc|expir|ssn|social.?ins|sin\b|iban|routing|account.?num|security|captcha|recaptcha|token|nonce|honeypot|_wp|g-recaptcha/i;
   function labelOf(el) {
@@ -73,22 +77,38 @@
     });
     return trap || !n ? null : f;
   }
-  var last = typeof WeakMap === 'function' ? new WeakMap() : null;
   function onForm(form) {
     var f = grab(form);
     if (!f) return;
-    var email = '', phone = '', name = '';
+    var email = '', phone = '', name = '', first = '', lastName = '';
     Object.keys(f).forEach(function (k) {
       var v = f[k];
       if (!email && (/e-?mail/i.test(k) || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v))) email = v;
       else if (!phone && /phone|tel|mobile|cell/i.test(k)) phone = v;
-      else if (!name && /name/i.test(k) && !/company|business|last|sur/i.test(k)) name = v;
+      else if (!first && /first|given/i.test(k) && /name/i.test(k)) first = v;
+      else if (!lastName && /last|sur|family/i.test(k) && /name/i.test(k)) lastName = v;
+      else if (!name && /name/i.test(k) && !/company|business|organi/i.test(k)) name = v;
     });
+    if (first || lastName) name = (first + ' ' + lastName).trim();
     if (!email && !phone) return;                 /* searches and logins aren't leads */
-    if (last) { var t = last.get(form); if (t && Date.now() - t < 5000) return; last.set(form, Date.now()); }
+    /* the same person sending the same form again within 30 minutes is one lead */
+    var dk = 'el_sent_' + (email + '|' + phone).toLowerCase().replace(/[^a-z0-9@|.+-]/g, '').slice(0, 80);
+    try { if (Date.now() - Number(sessionStorage.getItem(dk) || 0) < 18e5) return; } catch (e) {}
     var title = form.getAttribute('aria-label') || form.getAttribute('data-name') || form.getAttribute('name') || form.id || '';
     if (!title || /^(form|wpforms-form-\d+|gform_\d+)$/i.test(title)) { var h = form.querySelector('h1,h2,h3,h4,legend'); title = (h && h.textContent.trim()) || document.title; }
-    send({ t: 'form', form: String(title).slice(0, 100), f: f, email: email, phone: phone, name: name });
+    var hit = { t: 'form', form: String(title).slice(0, 100), f: f, email: email, phone: phone, name: name };
+    /* Wait a moment and look at the form again: if the site's own check rejected it (a required field,
+       a bad email, a failed captcha), it isn't a lead yet. If the page is leaving, send straight away. */
+    var done = false;
+    function go() { if (done) return; done = true; window.removeEventListener('pagehide', go); try { sessionStorage.setItem(dk, String(Date.now())); } catch (e) {} send(hit); }
+    window.addEventListener('pagehide', go);
+    setTimeout(function () { if (done) return; if (rejected(form)) { done = true; window.removeEventListener('pagehide', go); return; } go(); }, 1800);
+  }
+  function rejected(form) {
+    if (!form.isConnected) return false;
+    if (form.querySelector('[aria-invalid="true"], .et_contact_error, .wpcf7-not-valid, .gfield_error, .wpforms-error, .error, .invalid, .is-invalid, .has-error')) return true;
+    var box = form.parentNode && form.parentNode.parentNode, msg = box && box.querySelector ? box.querySelector('.et-pb-contact-message, .wpcf7-response-output, .gform_validation_errors') : null;
+    return !!(msg && /error|please|required|invalid|incorrect|failed|try again/i.test(msg.textContent || '') && !/thank|success|sent|received/i.test(msg.textContent || ''));
   }
   document.addEventListener('submit', function (e) { var t = e.target; if (t && t.tagName === 'FORM') { try { onForm(t); } catch (err) {} } }, true);
 
