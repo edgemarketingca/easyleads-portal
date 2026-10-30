@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Easyleads · Client console</title>
+<link rel="icon" href="../img/easyleads-mark.png">
+<style>
+:root{--blue:#0b5fd0;--blue2:#1d7cf2;--navy:#0a2a5c;--ink:#0f1b2d;--mute:#5d6b82;--line:#e3e9f2;--bg:#f5f8fc;--ok:#0f9d6b;--bad:#d93848;--warn:#b7791f;--r:16px}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.5 Inter,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg)}
+button,input,select{font:inherit}
+.top{display:flex;align-items:center;gap:14px;padding:14px 28px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+.top img{width:30px;height:30px}
+.top b{font-size:20px;letter-spacing:-.02em}
+.top .sub{color:var(--mute);border-left:1px solid var(--line);padding-left:14px;line-height:1.2}
+.top .sub small{display:block;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase}
+.top .sp{flex:1}
+.btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:10px;padding:9px 15px;cursor:pointer;font-weight:600;transition:.15s}
+.btn:hover{border-color:#c5d3e8;box-shadow:0 2px 10px rgba(11,95,208,.08)}
+.btn.pri{background:linear-gradient(120deg,var(--blue),var(--blue2));border-color:transparent;color:#fff}
+.btn.pri:hover{box-shadow:0 6px 18px rgba(11,95,208,.28)}
+.btn.sm{padding:6px 11px;font-size:13px;border-radius:9px}
+.btn.bad{color:var(--bad)}
+.btn[disabled]{opacity:.55;cursor:default}
+main{max-width:1240px;margin:0 auto;padding:30px 28px 60px}
+h1{font-size:30px;letter-spacing:-.03em;margin:0 0 4px}
+.lead{color:var(--mute);margin:0 0 20px}
+.acts{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:22px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:22px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:18px 20px}
+.stat .v{font-size:30px;font-weight:700;letter-spacing:-.03em}
+.stat .l{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute);font-weight:600}
+.bar{display:flex;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+.bar input{flex:1;min-width:240px;border:1px solid var(--line);border-radius:12px;padding:11px 14px;background:#fff}
+.seg{display:flex;background:#e9eef6;border-radius:12px;padding:4px}
+.seg button{border:0;background:transparent;padding:7px 13px;border-radius:9px;cursor:pointer;color:var(--mute);font-weight:600}
+.seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:18px}
+.card{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:20px;display:flex;flex-direction:column;gap:12px;position:relative;overflow:hidden}
+.card:before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:linear-gradient(90deg,var(--blue),var(--blue2));opacity:.7}
+.ch{display:flex;align-items:flex-start;gap:12px}
+.av{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#e8f1ff,#d5e6ff);color:var(--blue);display:grid;place-items:center;font-weight:700;flex:none}
+.ch h3{margin:0;font-size:17px;letter-spacing:-.01em}
+.ch .dm{color:var(--mute);font-size:13px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:3px 10px;border-radius:99px;background:#e6f6ef;color:var(--ok);white-space:nowrap}
+.pill.no{background:#fdecee;color:var(--bad)}
+.pill.warn{background:#fdf3e1;color:var(--warn)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:12px;padding:3px 9px;border-radius:8px;background:#eef4ff;color:var(--blue);font-weight:600}
+.chip.no{background:#fdecee;color:var(--bad)}
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.tog{display:inline-flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:99px;padding:5px 12px 5px 6px;cursor:pointer;background:#fff;font-weight:600;font-size:13px}
+.tog i{width:34px;height:20px;border-radius:99px;background:#cfd8e6;position:relative;transition:.15s}
+.tog i:after{content:"";position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:#fff;transition:.15s}
+.tog.on i{background:var(--blue)}
+.tog.on i:after{left:17px}
+.link{color:var(--blue);cursor:pointer;font-weight:600;background:none;border:0;padding:0}
+.users{display:flex;flex-direction:column;gap:8px}
+.user{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:9px 11px;background:#fafcff}
+.user .ini{width:30px;height:30px;border-radius:50%;background:var(--blue);color:#fff;font-size:12px;font-weight:700;display:grid;place-items:center;flex:none}
+.user .who{flex:1;min-width:0;line-height:1.25}
+.user .who b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.user .who small{color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.user.off{opacity:.6}
+.menu{position:relative}
+.menu .dd{position:absolute;right:0;top:110%;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 30px rgba(15,27,45,.14);padding:6px;display:none;min-width:180px;z-index:4}
+.menu.open .dd{display:block}
+.dd button{display:block;width:100%;text-align:left;border:0;background:none;padding:8px 10px;border-radius:8px;cursor:pointer}
+.dd button:hover{background:#f1f5fb}
+.dd button.bad{color:var(--bad)}
+.empty{color:var(--mute);font-size:13px}
+.back{position:fixed;inset:0;background:rgba(10,24,48,.45);display:grid;place-items:center;z-index:20;padding:20px}
+.modal{background:#fff;border-radius:20px;width:min(560px,100%);max-height:90vh;overflow:auto;padding:26px;box-shadow:0 30px 80px rgba(0,0,0,.25)}
+.modal.wide{width:min(860px,100%)}
+.modal h2{margin:0 0 6px;font-size:21px;letter-spacing:-.02em}
+.modal p.s{color:var(--mute);margin:0 0 16px}
+label.f{display:block;font-weight:600;font-size:13px;margin:12px 0 5px}
+label.f small{font-weight:400;color:var(--mute)}
+.in{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.in:focus{outline:2px solid #b9d3fb;border-color:var(--blue)}
+.mf{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
+.err{background:#fdecee;color:var(--bad);border-radius:10px;padding:9px 12px;margin-top:12px;font-size:13px}
+.note{background:#eef4ff;color:#244a86;border-radius:10px;padding:9px 12px;margin-top:12px;font-size:13px}
+.checks{display:grid;grid-template-columns:1fr 1fr;gap:6px;max-height:180px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:8px}
+.checks label{display:flex;gap:8px;align-items:center;font-size:13px}
+.chat{border-bottom:1px solid var(--line);padding:12px 0}
+.chat .q{font-weight:600}
+.chat .a{color:#2c3a50;white-space:pre-wrap;margin-top:4px}
+.chat small{color:var(--mute)}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 18px;border-radius:12px;z-index:30;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.toast.bad{background:var(--bad)}
+.signin{min-height:100vh;display:grid;place-items:center;padding:20px;background:radial-gradient(1200px 600px at 20% -10%,#dbe9ff,transparent),var(--bg)}
+.signin .box{background:#fff;border:1px solid var(--line);border-radius:22px;padding:34px;width:min(420px,100%);box-shadow:0 20px 60px rgba(11,95,208,.12)}
+.signin .brand{display:flex;align-items:center;gap:10px;margin-bottom:18px}
+.signin .brand img{width:34px;height:34px}
+.signin .brand b{font-size:22px}
+.spin{width:16px;height:16px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .7s linear infinite;display:inline-block}
+@keyframes sp{to{transform:rotate(360deg)}}
+.sk{background:linear-gradient(90deg,#eef2f8,#f7f9fc,#eef2f8);background-size:200% 100%;animation:sh 1.2s infinite;border-radius:var(--r);height:230px}
+@keyframes sh{to{background-position:-200% 0}}
+@media(max-width:820px){.stats{grid-template-columns:1fr 1fr}.top .sub{display:none}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="../portal-config.js"></script>
+<script>
+(function () {
+'use strict';
+const API = (window.PORTAL_CONFIG || {}).api;
+const KEYS = 'el_console_key';
+const PORTAL = new URL('../', location.href).href;
+const $ = (s, r) => (r || document).querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+const app = $('#app');
+let KEY = '';
+try { KEY = sessionStorage.getItem(KEYS) || localStorage.getItem(KEYS) || ''; } catch (e) {}
+const S = { users: [], clients: [], scopes: null, botReady: false, filter: 'all', q: '' };
+const NAMES = { forms: 'Forms', calls: 'Calls', contacts: 'Contacts', opps: 'Pipeline', appts: 'Bookings', emails: 'Email' };
+
+async function call(action, body) {
+  const res = await fetch(API, { method: 'POST', body: JSON.stringify(Object.assign({ action, key: KEY }, body || {})) });
+  const j = await res.json();
+  if (j && j.error === 'unauthorized') { signOut(); throw new Error('That team key isn’t right.'); }
+  if (j && j.error) throw new Error(j.error);
+  return j;
+}
+function toast(m, bad) { const t = document.createElement('div'); t.className = 'toast' + (bad ? ' bad' : ''); t.textContent = m; document.body.appendChild(t); setTimeout(() => t.remove(), 3200); }
+function signOut() { KEY = ''; try { sessionStorage.removeItem(KEYS); localStorage.removeItem(KEYS); } catch (e) {} signIn(); }
+const initials = s => String(s || '?').split(/[\s@.]+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('');
+const ago = t => { if (!t) return 'never signed in'; const d = (Date.now() - t) / 864e5; return d < 1 ? 'active today' : d < 2 ? 'active yesterday' : 'active ' + Math.round(d) + ' days ago'; };
+
+/* ---------- sign in ---------- */
+function signIn() {
+  app.innerHTML = '<div class="signin"><form class="box"><div class="brand"><img src="../img/easyleads-mark.png" alt=""><b>Easyleads</b></div>' +
+    '<h2 style="margin:0 0 4px">Client console</h2><p style="color:var(--mute);margin:0 0 18px">For the Easyleads team. Enter the team key to manage clients and their dashboard logins.</p>' +
+    '<label class="f">Team key</label><input class="in" type="password" autocomplete="current-password" required>' +
+    '<label style="display:flex;gap:8px;align-items:center;margin-top:12px;font-size:13px;color:var(--mute)"><input type="checkbox"> Remember on this computer</label>' +
+    '<div class="err" hidden></div><button class="btn pri" style="width:100%;justify-content:center;margin-top:18px">Sign in</button></form></div>';
+  const f = $('form', app);
+  f.addEventListener('submit', async e => {
+    e.preventDefault();
+    const b = $('button', f), er = $('.err', f);
+    KEY = $('input[type=password]', f).value.trim();
+    b.disabled = true; b.innerHTML = '<span class="spin"></span> Checking';
+    try {
+      await call('portalAdminList');
+      try { ($('input[type=checkbox]', f).checked ? localStorage : sessionStorage).setItem(KEYS, KEY); } catch (e2) {}
+      load();
+    } catch (err) { er.hidden = false; er.textContent = err.message; b.disabled = false; b.textContent = 'Sign in'; KEY = ''; }
+  });
+}
+
+/* ---------- console ---------- */
+function shell() {
+  app.innerHTML = '<div class="top"><img src="../img/easyleads-mark.png" alt=""><b>Easyleads</b><div class="sub">Client console<small>Team only</small></div><div class="sp"></div>' +
+    '<button class="btn sm" data-out>Sign out</button></div>' +
+    '<main><h1>Easyleads clients</h1><p class="lead">Connect a client’s Easyleads account once, then give them a login to their own read-only dashboard.</p>' +
+    '<div class="acts"><button class="btn pri" data-new>+ New client</button><button class="btn" data-login>New client login</button><button class="btn" data-copy>Copy client login link</button><button class="btn" data-recheck>Re-check all clients</button></div>' +
+    '<div class="stats" data-stats></div>' +
+    '<div class="bar"><input placeholder="Find a client by name or website" data-q><div class="seg" data-seg><button data-f="all" class="on">All</button><button data-f="login">Has a login</button><button data-f="nologin">No login yet</button><button data-f="access">Needs access</button></div></div>' +
+    '<div class="grid" data-grid><div class="sk"></div><div class="sk"></div><div class="sk"></div></div></main>';
+  $('[data-out]').onclick = signOut;
+  $('[data-new]').onclick = () => clientForm();
+  $('[data-login]').onclick = () => userForm(null);
+  $('[data-copy]').onclick = () => { navigator.clipboard.writeText(PORTAL).then(() => toast('Client login link copied'), () => toast(PORTAL)); };
+  $('[data-recheck]').onclick = async e => { const b = e.currentTarget; b.disabled = true; b.innerHTML = '<span class="spin"></span> Checking every client'; try { await call('portalAdminCheck'); await refresh(); toast('Every client re-checked'); } catch (err) { toast(err.message, 1); } b.disabled = false; b.textContent = 'Re-check all clients'; };
+  $('[data-q]').oninput = e => { S.q = e.target.value.toLowerCase(); draw(); };
+  $('[data-seg]').onclick = e => { const b = e.target.closest('button'); if (!b) return; S.filter = b.dataset.f; [...$('[data-seg]').children].forEach(x => x.classList.toggle('on', x === b)); draw(); };
+  document.addEventListener('click', e => { document.querySelectorAll('.menu.open').forEach(m => { if (!m.contains(e.target)) m.classList.remove('open'); }); });
+}
+async function load() { shell(); await refresh(); }
+async function refresh() {
+  try {
+    const j = await call('portalAdminList');
+    S.users = j.users || []; S.clients = j.clients || []; S.scopes = j.scopes; S.botReady = !!j.botReady;
+    draw();
+  } catch (err) { $('[data-grid]').innerHTML = '<div class="err">' + esc(err.message) + '</div>'; }
+}
+function missing(d) {
+  const x = S.scopes && S.scopes.d && S.scopes.d[d];
+  if (!x) return [];
+  return Object.keys(x).filter(k => x[k] && x[k] !== true && x[k] !== 'ok' && x[k].ok !== true).map(k => NAMES[k] || k);
+}
+function usersOf(d) { return S.users.filter(u => (u.domains || []).indexOf(d) > -1); }
+function draw() {
+  const week = Date.now() - 7 * 864e5;
+  $('[data-stats]').innerHTML = [[S.clients.filter(c => c.connected).length, 'Connected to Easyleads'], [S.users.length, 'Client logins'], [S.users.filter(u => (u.lastSeen || u.lastLogin) > week).length, 'Active this week'], [S.clients.filter(c => missing(c.domain).length).length, 'Need more data access']]
+    .map(s => '<div class="stat"><div class="v">' + s[0] + '</div><div class="l">' + s[1] + '</div></div>').join('');
+  let list = S.clients.slice();
+  if (S.q) list = list.filter(c => (c.name + ' ' + c.domain).toLowerCase().indexOf(S.q) > -1);
+  if (S.filter === 'login') list = list.filter(c => usersOf(c.domain).length);
+  if (S.filter === 'nologin') list = list.filter(c => !usersOf(c.domain).length);
+  if (S.filter === 'access') list = list.filter(c => missing(c.domain).length);
+  const g = $('[data-grid]');
+  if (!list.length) { g.innerHTML = '<div class="empty">' + (S.clients.length ? 'No clients match.' : 'No clients yet. Click “+ New client” to connect the first one.') + '</div>'; return; }
+  g.innerHTML = list.map(c => {
+    const miss = missing(c.domain), us = usersOf(c.domain);
+    const chips = Object.keys(NAMES).map(k => '<span class="chip' + (miss.indexOf(NAMES[k]) > -1 ? ' no' : '') + '">' + (miss.indexOf(NAMES[k]) > -1 ? '✕ ' : '✓ ') + NAMES[k] + '</span>').join('');
+    return '<div class="card" data-d="' + esc(c.domain) + '"><div class="ch"><div class="av">' + esc(initials(c.name)) + '</div><div style="flex:1;min-width:0"><h3>' + esc(c.name) + '</h3><div class="dm">' + esc(c.domain) + '</div></div>' +
+      (c.connected ? (miss.length ? '<span class="pill warn">Needs access</span>' : '<span class="pill">● Easyleads</span>') : '<span class="pill no">Not connected</span>') +
+      '<div class="menu"><button class="btn sm" data-more aria-label="More">⋯</button><div class="dd"><button data-x="recheck">Re-check access</button><button data-x="rename">Rename</button><button data-x="reconnect">Replace Location ID / token</button><button data-x="remove" class="bad">Remove client</button></div></div></div>' +
+      (c.connected ? '<div class="chips">' + chips + '</div>' : '') +
+      '<div class="row"><button class="tog' + (c.bot ? ' on' : '') + '" data-x="bot"><i></i>Assistant ' + (c.bot ? 'on' : 'off') + '</button>' + (c.bot ? '<button class="link" data-x="chats">Read chats</button>' : '') + '</div>' +
+      '<div class="users">' + (us.length ? us.map(u => '<div class="user' + (u.disabled ? ' off' : '') + '" data-u="' + esc(u.id) + '"><div class="ini">' + esc(initials(u.name || u.email)) + '</div><div class="who"><b>' + esc(u.name || u.email) + (u.disabled ? ' · off' : '') + '</b><small>' + esc(u.email) + ' · ' + ago(u.lastSeen || u.lastLogin) + '</small></div>' +
+        '<button class="btn sm" data-ux="as" title="Open their dashboard as them">Open</button><div class="menu"><button class="btn sm" data-more>⋯</button><div class="dd"><button data-ux="edit">Edit login</button><button data-ux="toggle">' + (u.disabled ? 'Turn back on' : 'Turn off') + '</button><button data-ux="signout">Sign out everywhere</button><button data-ux="del" class="bad">Delete login</button></div></div></div>').join('') : '<div class="empty">No login yet.</div>') + '</div>' +
+      '<div class="row"><button class="btn pri sm" data-x="login">+ Create login</button></div></div>';
+  }).join('');
+  g.querySelectorAll('[data-more]').forEach(b => b.onclick = e => { e.stopPropagation(); const m = b.parentElement; document.querySelectorAll('.menu.open').forEach(x => x !== m && x.classList.remove('open')); m.classList.toggle('open'); });
+  g.querySelectorAll('[data-x]').forEach(b => b.onclick = () => clientAct(b.dataset.x, S.clients.find(c => c.domain === b.closest('[data-d]').dataset.d), b));
+  g.querySelectorAll('[data-ux]').forEach(b => b.onclick = () => userAct(b.dataset.ux, S.users.find(u => u.id === b.closest('[data-u]').dataset.u), b));
+}
+
+/* ---------- modals ---------- */
+function modal(html, wide) {
+  const b = document.createElement('div'); b.className = 'back';
+  b.innerHTML = '<div class="modal' + (wide ? ' wide' : '') + '" role="dialog" aria-modal="true">' + html + '</div>';
+  document.body.appendChild(b);
+  const close = () => { b.remove(); document.removeEventListener('keydown', k); };
+  const k = e => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', k);
+  b.addEventListener('mousedown', e => { if (e.target === b) close(); });
+  b.querySelectorAll('[data-close]').forEach(x => x.onclick = close);
+  return { el: b, close };
+}
+function confirmBox(title, text, okText) {
+  return new Promise(res => {
+    const m = modal('<h2>' + esc(title) + '</h2><p class="s">' + esc(text) + '</p><div class="mf"><button class="btn" data-close>Cancel</button><button class="btn pri" data-ok>' + esc(okText) + '</button></div>');
+    $('[data-ok]', m.el).onclick = () => { m.close(); res(true); };
+    m.el.addEventListener('remove', () => res(false));
+  });
+}
+async function busyBtn(b, text, fn) {
+  const old = b.innerHTML; b.disabled = true; b.innerHTML = '<span class="spin"></span> ' + esc(text);
+  try { return await fn(); } finally { b.disabled = false; b.innerHTML = old; }
+}
+
+/* New client: one step. Name, website, Location ID and token; checked on the spot. */
+function clientForm(c) {
+  const edit = !!c;
+  const m = modal('<h2>' + (edit ? 'Replace connection' : 'New client') + '</h2><p class="s">' + (edit ? 'Paste a new Location ID and Private Integration token for ' + esc(c.name) + '.' : 'Connect the client’s Easyleads sub-account. Their past and new data appear on their dashboard straight away.') + '</p><form>' +
+    '<label class="f">Client name</label><input class="in" name="name" required value="' + esc(c ? c.name : '') + '"' + (edit ? ' readonly' : '') + '>' +
+    '<label class="f">Website <small>for example example.com</small></label><input class="in" name="domain" required value="' + esc(c ? c.domain : '') + '"' + (edit ? ' readonly' : '') + '>' +
+    '<label class="f">Location ID <small>Easyleads → Settings → Business Profile</small></label><input class="in" name="loc" required autocomplete="off">' +
+    '<label class="f">Private Integration token <small>Settings → Private Integrations → Create new</small></label><input class="in" name="tok" type="password" required autocomplete="off">' +
+    '<div class="note">Give the token these read-only permissions: View Forms, View Custom Fields, View Contacts, View Conversation Messages, View Opportunities, View Calendars, View Calendar Events.</div>' +
+    '<div class="err" hidden></div><div class="mf"><button type="button" class="btn" data-close>Cancel</button><button class="btn pri">' + (edit ? 'Save connection' : 'Connect client') + '</button></div></form>');
+  const f = $('form', m.el);
+  f.onsubmit = async e => {
+    e.preventDefault();
+    const er = $('.err', f), b = $('button.pri', f), v = Object.fromEntries(new FormData(f));
+    er.hidden = true;
+    try {
+      const j = await busyBtn(b, 'Checking the connection', () => call('elAddClient', v));
+      m.close(); await refresh();
+      if (j.missing && j.missing.length) toast('Connected. Still needs: ' + j.missing.join(', '), 1); else toast(edit ? 'Connection replaced' : 'Client connected');
+      if (!edit) { const nc = S.clients.find(x => x.domain === j.domain); if (nc && !usersOf(nc.domain).length) userForm(null, nc.domain); }
+    } catch (err) { er.hidden = false; er.textContent = err.message; }
+  };
+}
+
+function genPw() { const a = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'; const r = new Uint32Array(16); crypto.getRandomValues(r); return [...r].map(n => a[n % a.length]).join(''); }
+function userForm(u, domain) {
+  const doms = u ? u.domains || [] : (domain ? [domain] : []);
+  const m = modal('<h2>' + (u ? 'Edit login' : 'New client login') + '</h2><p class="s">' + (u ? esc(u.email) : 'The client signs in at the client login link with this email and password.') + '</p><form>' +
+    '<label class="f">Name</label><input class="in" name="name" value="' + esc(u ? u.name : '') + '">' +
+    '<label class="f">Email</label><input class="in" name="email" type="email" required value="' + esc(u ? u.email : '') + '">' +
+    '<label class="f">' + (u ? 'New password <small>leave empty to keep the current one</small>' : 'Password <small>at least 12 characters</small>') + '</label><div class="row" style="flex-wrap:nowrap"><input class="in" name="password" type="text" autocomplete="new-password"' + (u ? '' : ' required') + '><button type="button" class="btn sm" data-gen>Generate</button></div>' +
+    '<label class="f">Dashboards this login can see</label><div class="checks">' + S.clients.map(c => '<label><input type="checkbox" name="d" value="' + esc(c.domain) + '"' + (doms.indexOf(c.domain) > -1 ? ' checked' : '') + '> ' + esc(c.name) + '</label>').join('') + '</div>' +
+    '<label style="display:flex;gap:8px;align-items:center;margin-top:12px;font-size:13px"><input type="checkbox" name="canEdit"' + (u && u.locked ? '' : ' checked') + '> The client can rearrange their own dashboard</label>' +
+    '<div class="err" hidden></div><div class="mf"><button type="button" class="btn" data-close>Cancel</button><button class="btn pri">' + (u ? 'Save login' : 'Create login') + '</button></div></form>');
+  const f = $('form', m.el);
+  $('[data-gen]', f).onclick = () => { f.password.value = genPw(); };
+  if (!u) f.password.value = genPw();
+  f.onsubmit = async e => {
+    e.preventDefault();
+    const er = $('.err', f), b = $('button.pri', f);
+    const body = { id: u ? u.id : undefined, name: f.name.value.trim(), email: f.email.value.trim(), domains: [...f.querySelectorAll('input[name=d]:checked')].map(x => x.value), locked: !f.canEdit.checked, disabled: u ? !!u.disabled : false };
+    if (f.password.value) body.password = f.password.value;
+    if (!body.domains.length) { er.hidden = false; er.textContent = 'Pick at least one dashboard.'; return; }
+    try {
+      await busyBtn(b, 'Saving', () => call('portalAdminSave', body));
+      const pw = body.password;
+      m.close(); await refresh();
+      if (pw) {
+        const share = 'Your Easyleads dashboard\n' + PORTAL + '\nEmail: ' + body.email + '\nPassword: ' + pw;
+        const s = modal('<h2>Login ready</h2><p class="s">Send these to the client. The password isn’t shown again.</p><pre class="in" style="white-space:pre-wrap;background:#f7f9fc">' + esc(share) + '</pre><div class="mf"><button class="btn" data-close>Done</button><button class="btn pri" data-cp>Copy</button></div>');
+        $('[data-cp]', s.el).onclick = () => navigator.clipboard.writeText(share).then(() => toast('Copied'));
+      } else toast('Login saved');
+    } catch (err) { er.hidden = false; er.textContent = err.message; }
+  };
+}
+
+async function clientAct(a, c, b) {
+  if (!c) return;
+  try {
+    if (a === 'login') return userForm(null, c.domain);
+    if (a === 'reconnect') return clientForm(c);
+    if (a === 'bot') { await busyBtn(b, c.bot ? 'Turning off' : 'Turning on', () => call('portalAdminBot', { domain: c.domain, on: !c.bot })); await refresh(); return toast('Assistant ' + (c.bot ? 'off' : 'on') + ' for ' + c.name); }
+    if (a === 'recheck') { toast('Checking ' + c.name + '…'); await call('portalAdminCheck', { domain: c.domain }); await refresh(); return toast(c.name + ' re-checked'); }
+    if (a === 'rename') {
+      const m = modal('<h2>Rename client</h2><form><label class="f">Name</label><input class="in" name="n" value="' + esc(c.name) + '" required><div class="mf"><button type="button" class="btn" data-close>Cancel</button><button class="btn pri">Save</button></div></form>');
+      $('form', m.el).onsubmit = async e => { e.preventDefault(); await call('elRenameClient', { domain: c.domain, name: e.target.n.value }); m.close(); await refresh(); toast('Renamed'); };
+      return;
+    }
+    if (a === 'remove') {
+      if (!await confirmBox('Remove ' + c.name + '?', 'Their Easyleads connection is deleted from the console. Logins stay, but their dashboard shows nothing until the client is connected again.', 'Remove client')) return;
+      await call('elRemoveClient', { domain: c.domain }); await refresh(); return toast(c.name + ' removed');
+    }
+    if (a === 'chats') {
+      const m = modal('<h2>Assistant chats · ' + esc(c.name) + '</h2><p class="s">Newest first.</p><div data-c><span class="spin"></span></div><div class="mf"><button class="btn" data-close>Close</button></div>', true);
+      const j = await call('portalAdminChats', { domain: c.domain });
+      const rows = (j.rows || []).slice().reverse();
+      $('[data-c]', m.el).innerHTML = rows.length ? rows.map(r => '<div class="chat"><small>' + esc(new Date(r.t).toLocaleString('en-CA')) + ' · ' + esc(r.name || r.email) + (r.as === 'Team' ? ' · viewed by the team' : '') + '</small><div class="q">' + esc(r.q) + '</div><div class="a">' + esc(r.a) + '</div></div>').join('') : '<div class="empty">No chats yet.</div>';
+    }
+  } catch (err) { toast(err.message, 1); }
+}
+async function userAct(a, u, b) {
+  if (!u) return;
+  try {
+    if (a === 'edit') return userForm(u);
+    if (a === 'as') {
+      const w = window.open('about:blank', '_blank');
+      const j = await call('portalAdminSession', { id: u.id });
+      const url = PORTAL + '#s=' + encodeURIComponent(j.session);
+      if (w) w.location = url; else location.href = url;
+      return;
+    }
+    const base = { id: u.id, name: u.name, email: u.email, domains: u.domains, disabled: !!u.disabled };
+    if (a === 'toggle') { await call('portalAdminSave', Object.assign(base, { disabled: !u.disabled, signOut: !u.disabled })); await refresh(); return toast(u.disabled ? 'Login turned back on' : 'Login turned off'); }
+    if (a === 'signout') { await call('portalAdminSave', Object.assign(base, { signOut: true })); return toast('Signed out on every device'); }
+    if (a === 'del') {
+      if (!await confirmBox('Delete ' + (u.name || u.email) + '?', 'They can’t sign in again and their own dashboard layout is deleted. This can’t be undone.', 'Delete login')) return;
+      await call('portalAdminDelete', { id: u.id }); await refresh(); return toast('Login deleted');
+    }
+  } catch (err) { toast(err.message, 1); }
+}
+
+if (!API) { app.innerHTML = '<div class="signin"><div class="box">This console isn’t set up yet.</div></div>'; return; }
+if (KEY) load(); else signIn();
+})();
+</script>
+</body>
+</html>
