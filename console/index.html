@@ -83,8 +83,9 @@ main{max-width:1280px;margin:0 auto;padding:34px 30px 80px}
 .ch{display:flex;align-items:center;gap:13px}
 .logo{width:52px;height:52px;border-radius:15px;background:#fff;border:1px solid var(--line);display:grid;place-items:center;flex:none;overflow:hidden;box-shadow:0 4px 12px -6px rgba(13,26,45,.18);position:relative}
 .logo img{width:78%;height:78%;object-fit:contain;display:block;opacity:0;transition:opacity .4s,transform .4s var(--ease)}
-.logo.wide{width:auto;min-width:52px;max-width:132px;padding:0 10px}
-.logo.wide img{width:auto;height:30px;max-width:112px}
+.logo.wide{width:124px;padding:0 11px}
+.logo.wide img{width:100%;height:32px}
+.logo.dark{background:linear-gradient(135deg,#0a2a5c,#0b4fb0);border-color:transparent;box-shadow:0 6px 16px -8px rgba(10,42,92,.6)}
 .card:hover .logo img{transform:scale(1.06)}
 .logo img.in{opacity:1}
 .logo .ini{font-weight:800;color:var(--b1);font-size:16px;letter-spacing:-.02em}
@@ -257,7 +258,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const app = $('#app');
 let KEY = '';
 try { KEY = sessionStorage.getItem(KEYS) || localStorage.getItem(KEYS) || ''; } catch (e) {}
-const S = { users: [], clients: [], info: {}, scopes: null, filter: 'all', q: '', site: {} };
+const S = { users: [], clients: [], info: {}, scopes: null, filter: 'all', q: '', site: {}, lg: {}, lgKey: {} };
 const AREAS = [['forms', 'Forms'], ['calls', 'Calls'], ['contacts', 'Contacts'], ['opps', 'Pipeline'], ['appts', 'Bookings'], ['emails', 'Email']];
 const I = {
   check: '<svg class="i" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>',
@@ -349,18 +350,64 @@ async function stage(title, steps, work, done) {
 const initials = s => String(s || '?').split(/[\s@.&]+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('');
 const ago = t => { if (!t) return 'never signed in'; const d = (Date.now() - t) / 864e5; return d < 1 ? 'active today' : d < 2 ? 'active yesterday' : 'active ' + Math.round(d) + ' days ago'; };
 const since = t => { if (!t) return ''; const m = (Date.now() - t) / 6e4; return m < 60 ? Math.max(1, Math.round(m)) + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' days ago'; };
+/* Logos: the backend sends each logo as image data; here it's trimmed to its edges, a white logo
+   (made for a dark website header) gets a navy tile, and a wordmark gets a wider tile. */
 function logoHtml(c) {
-  const inf = S.info[c.domain] || {};
-  const own = inf.icon && !/google\.com\/s2\/favicons/.test(inf.icon) ? inf.icon : '';
-  const src = inf.logo || own || inf.icon || '';
-  return '<div class="logo' + (src ? ' ld' : '') + '" data-logo>' + (src ? '<img alt="" referrerpolicy="no-referrer" src="' + esc(src) + '" data-alt="' + esc(inf.logo && inf.logo !== src ? inf.logo : (inf.icon && inf.icon !== src ? inf.icon : '')) + '">' : '<span class="ini">' + esc(initials(c.name)) + '</span>') + '</div>';
+  const p = S.lg[c.domain], inf = S.info[c.domain] || {};
+  if (p && p.src) return '<div class="logo' + (p.wide ? ' wide' : '') + (p.dark ? ' dark' : '') + '" data-logo><img class="in" alt="" src="' + p.src + '"></div>';
+  if (p === null || (!inf.logo && !inf.icon)) return '<div class="logo" data-logo><span class="ini">' + esc(initials(c.name)) + '</span></div>';
+  return '<div class="logo ld" data-logo></div>';
 }
-function wireLogos(root) {
-  $$('[data-logo] img', root).forEach(img => {
-    const ok = () => { if (img.naturalWidth > img.naturalHeight * 1.5) img.parentElement.classList.add('wide'); img.classList.add('in'); img.parentElement.classList.remove('ld'); };
-    const bad = () => { const alt = img.getAttribute('data-alt'); if (alt) { img.removeAttribute('data-alt'); img.src = alt; return; } const box = img.parentElement; box.classList.remove('ld'); box.innerHTML = '<span class="ini">' + esc(initials(box.closest('[data-d]') ? (S.clients.find(c => c.domain === box.closest('[data-d]').dataset.d) || {}).name : '')) + '</span>'; };
-    if (img.complete && img.naturalWidth) ok(); else { img.addEventListener('load', ok); img.addEventListener('error', bad); }
+function wireLogos() {}
+function prepLogo(data) {
+  return new Promise(res => {
+    if (!data) return res(null);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        let w = img.naturalWidth || 300, h = img.naturalHeight || 150;
+        const k = Math.min(1, 480 / Math.max(w, h)); w = Math.max(1, Math.round(w * k)); h = Math.max(1, Math.round(h * k));
+        const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+        const x = cv.getContext('2d'); x.drawImage(img, 0, 0, w, h);
+        const px = x.getImageData(0, 0, w, h).data;
+        let clear = 0, all = 0;
+        for (let i = 3; i < px.length; i += 16) { all++; if (px[i] < 20) clear++; }
+        const alpha = clear > all * 0.04;
+        let x0 = w, y0 = h, x1 = -1, y1 = -1, lum = 0, n = 0, colour = 0;
+        for (let y = 0; y < h; y++) for (let xx = 0; xx < w; xx++) {
+          const i = (y * w + xx) * 4; if (px[i + 3] < 24) continue;
+          const r = px[i], g = px[i + 1], b = px[i + 2], L = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+          if (!alpha && L > 238) continue;
+          if (xx < x0) x0 = xx; if (xx > x1) x1 = xx; if (y < y0) y0 = y; if (y > y1) y1 = y;
+          lum += L; n++; if (Math.max(r, g, b) - Math.min(r, g, b) > 40) colour++;
+        }
+        if (x1 < 0 || n < 20) return res(null);
+        const dark = alpha && lum / n > 190 && colour / n < 0.55;
+        const pad = Math.round(Math.max(x1 - x0, y1 - y0) * 0.04);
+        x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(w - 1, x1 + pad); y1 = Math.min(h - 1, y1 + pad);
+        const cw = x1 - x0 + 1, chh = y1 - y0 + 1, out = document.createElement('canvas'); out.width = cw; out.height = chh;
+        out.getContext('2d').drawImage(cv, x0, y0, cw, chh, 0, 0, cw, chh);
+        res({ src: out.toDataURL('image/png'), dark: dark, wide: cw / chh > 1.6 });
+      } catch (e) { res(null); }
+    };
+    img.onerror = () => res(null);
+    img.src = data;
   });
+}
+async function loadLogos() {
+  const keyOf = c => (c.logo || '') + '|' + (c.icon || '');
+  const need = S.clients.filter(c => S.lg[c.domain] === undefined || S.lgKey[c.domain] !== keyOf(c));
+  if (!need.length) return;
+  need.forEach(c => { delete S.lg[c.domain]; const t = $('[data-d="' + CSS.escape(c.domain) + '"] [data-logo]'); if (t && (c.logo || c.icon)) { t.className = 'logo ld'; t.innerHTML = ''; } });
+  let data = {};
+  try { data = (await call('elLogoData', { domains: need.map(c => c.domain) })).d || {}; } catch (e) {}
+  for (const c of need) {
+    const x = data[c.domain] || {};
+    const p = (await prepLogo(x.logo)) || (await prepLogo(x.icon));
+    S.lg[c.domain] = p; S.lgKey[c.domain] = keyOf(c);
+    const tile = $('[data-d="' + CSS.escape(c.domain) + '"] [data-logo]');
+    if (tile) { const t = document.createElement('div'); t.innerHTML = logoHtml(c); const nn = t.firstChild; nn.style.opacity = 0; nn.style.transform = 'scale(.9)'; tile.replaceWith(nn); requestAnimationFrame(() => { nn.style.transition = 'opacity .5s, transform .5s cubic-bezier(.2,1.4,.4,1)'; nn.style.opacity = 1; nn.style.transform = 'none'; }); }
+  }
 }
 function scope(d, k) {
   const x = S.scopes && S.scopes.d && S.scopes.d[d];
@@ -410,6 +457,7 @@ function apply(data) {
   S.clients = (data.a.clients || []).map(c => Object.assign({}, c, extra[c.domain] || {}));
   S.info = {}; S.clients.forEach(c => S.info[c.domain] = { logo: c.logo, icon: c.icon, site: c.site, sk: c.sk });
   draw();
+  loadLogos();
   S.clients.filter(c => c.site).forEach(c => siteStatus(c.domain));
 }
 async function refresh() { apply(await fetchAll()); }
