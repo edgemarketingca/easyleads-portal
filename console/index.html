@@ -590,7 +590,12 @@ function card(c, idx) {
     health = '<div class="health" title="Website clients show form leads and phone taps. Pipeline, contacts, bookings and email need an Easyleads account."><div class="segs"><b></b><b></b><b class="off"></b><b class="off"></b><b class="off"></b><b class="off"></b></div><span>Form leads and phone taps</span></div>';
   }
   const st = S.site[c.domain];
-  const snip = c.site ? '<div class="snip"><span class="dot ' + (st ? (st.last ? 'on' : 'wait') : '') + '"></span><span class="st">' + (st ? (st.last ? '<b>Snippet live</b> · ' + since(st.last) + ' · ' + st.forms + ' leads, ' + st.taps + ' taps (30 days)' : '<b>Waiting for the first lead</b>') : 'Checking the snippet…') + '</span><button class="link" data-x="snippet">' + I.code + 'Snippet</button></div>' : '';
+  const seen = st ? Math.max(st.seen || 0, st.last || 0) : 0;
+  const snipTxt = !st ? 'Checking the snippet…'
+    : st.last ? '<b>Snippet live</b> · last activity ' + since(st.last) + ' · ' + st.forms + ' leads, ' + st.taps + ' taps (30 days)'
+    : seen ? '<b>Snippet installed</b> · seen on the site ' + since(seen) + ' · waiting for the first lead'
+    : '<b>Not seen on the site yet</b> · paste the snippet, then open the website once';
+  const snip = c.site ? '<div class="snip"><span class="dot ' + (st ? (seen ? 'on' : 'wait') : '') + '"></span><span class="st">' + snipTxt + '</span><button class="link" data-x="snippet">' + I.code + 'Snippet</button></div>' : '';
   const menu = '<div class="menu"><button class="btn sm ghost icon" data-more aria-label="More">' + I.dots + '</button><div class="dd">' +
     (c.connected ? '<button data-x="recheck">' + I.refresh + 'Re-check access</button><button data-x="reconnect">' + I.key + 'Replace Location ID / token</button>' : '') +
     (c.site ? '<button data-x="snippet">' + I.code + 'Get the snippet</button>' : '') +
@@ -636,7 +641,7 @@ function showSnippet(c) {
   const code = snippetFor(c);
   const m = modal('<h2>Website snippet · ' + esc(c.name) + '</h2><p class="s">Paste this once on every page of <b>' + esc(c.domain) + '</b>, just before <code>&lt;/body&gt;</code>. Form submissions and taps on phone numbers then appear on their dashboard within a minute.</p>' +
     '<div class="code" data-code>' + esc(code) + '<button class="btn sm" data-cp>' + I.copy + 'Copy</button></div>' +
-    '<ul class="steps"><li><b>1</b><span><b>WordPress:</b> a header &amp; footer plugin (e.g. WPCode) → Footer, or your theme’s footer.</span></li><li><b>2</b><span><b>Concrete CMS:</b> Dashboard → System &amp; Settings → SEO &amp; Statistics → Tracking Codes → Footer.</span></li><li><b>3</b><span><b>Wix / Squarespace / Shopify:</b> Settings → Custom code → Body end, all pages.</span></li><li><b>4</b><span>Submit a test form on the site; the card turns green with the time of the first lead.</span></li></ul>' +
+    '<ul class="steps"><li><b>1</b><span><b>WordPress:</b> a header &amp; footer plugin (e.g. WPCode) → Footer, or your theme’s footer.</span></li><li><b>2</b><span><b>Concrete CMS:</b> Dashboard → System &amp; Settings → SEO &amp; Statistics → Tracking Codes → Footer.</span></li><li><b>3</b><span><b>Wix / Squarespace / Shopify:</b> Settings → Custom code → Body end, all pages.</span></li><li><b>4</b><span>Open the website once: within a minute this card says <b>Snippet installed</b>. A test form submission then shows as the first lead.</span></li></ul>' +
     '<div class="note">Captured: what visitors type into contact forms (never passwords or payment fields) and taps on phone numbers, with where they came from. Mention website forms in the client’s privacy policy.</div>' +
     '<div class="mf"><button class="btn" data-close>Done</button></div>', true);
   $('[data-cp]', m.el).onclick = e => navigator.clipboard.writeText(code).then(() => { toast('Snippet copied'); const r = e.target.getBoundingClientRect(); burst(r.left + r.width / 2, r.top); });
