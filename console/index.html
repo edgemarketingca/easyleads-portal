@@ -82,8 +82,9 @@ main{max-width:1280px;margin:0 auto;padding:34px 30px 80px}
 @keyframes rise{to{opacity:1;transform:none}}
 .ch{display:flex;align-items:center;gap:13px}
 .logo{width:52px;height:52px;border-radius:15px;background:#fff;border:1px solid var(--line);display:grid;place-items:center;flex:none;overflow:hidden;box-shadow:0 4px 12px -6px rgba(13,26,45,.18);position:relative}
-.logo img{width:76%;height:76%;object-fit:contain;display:block;opacity:0;transition:opacity .4s,transform .4s var(--ease);image-rendering:auto}
-.logo img.wide{width:88%;height:60%}
+.logo img{width:78%;height:78%;object-fit:contain;display:block;opacity:0;transition:opacity .4s,transform .4s var(--ease)}
+.logo.wide{width:auto;min-width:52px;max-width:132px;padding:0 10px}
+.logo.wide img{width:auto;height:30px;max-width:112px}
 .card:hover .logo img{transform:scale(1.06)}
 .logo img.in{opacity:1}
 .logo .ini{font-weight:800;color:var(--b1);font-size:16px;letter-spacing:-.02em}
@@ -350,12 +351,13 @@ const ago = t => { if (!t) return 'never signed in'; const d = (Date.now() - t) 
 const since = t => { if (!t) return ''; const m = (Date.now() - t) / 6e4; return m < 60 ? Math.max(1, Math.round(m)) + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' days ago'; };
 function logoHtml(c) {
   const inf = S.info[c.domain] || {};
-  const src = (inf.icon && !/google\.com\/s2\/favicons/.test(inf.icon)) ? inf.icon : (inf.logo || inf.icon || '');
+  const own = inf.icon && !/google\.com\/s2\/favicons/.test(inf.icon) ? inf.icon : '';
+  const src = inf.logo || own || inf.icon || '';
   return '<div class="logo' + (src ? ' ld' : '') + '" data-logo>' + (src ? '<img alt="" referrerpolicy="no-referrer" src="' + esc(src) + '" data-alt="' + esc(inf.logo && inf.logo !== src ? inf.logo : (inf.icon && inf.icon !== src ? inf.icon : '')) + '">' : '<span class="ini">' + esc(initials(c.name)) + '</span>') + '</div>';
 }
 function wireLogos(root) {
   $$('[data-logo] img', root).forEach(img => {
-    const ok = () => { if (img.naturalWidth > img.naturalHeight * 1.6) img.classList.add('wide'); img.classList.add('in'); img.parentElement.classList.remove('ld'); };
+    const ok = () => { if (img.naturalWidth > img.naturalHeight * 1.5) img.parentElement.classList.add('wide'); img.classList.add('in'); img.parentElement.classList.remove('ld'); };
     const bad = () => { const alt = img.getAttribute('data-alt'); if (alt) { img.removeAttribute('data-alt'); img.src = alt; return; } const box = img.parentElement; box.classList.remove('ld'); box.innerHTML = '<span class="ini">' + esc(initials(box.closest('[data-d]') ? (S.clients.find(c => c.domain === box.closest('[data-d]').dataset.d) || {}).name : '')) + '</span>'; };
     if (img.complete && img.naturalWidth) ok(); else { img.addEventListener('load', ok); img.addEventListener('error', bad); }
   });
