@@ -94,8 +94,7 @@
     /* the same person sending the same form again within 30 minutes is one lead */
     var dk = 'el_sent_' + (email + '|' + phone).toLowerCase().replace(/[^a-z0-9@|.+-]/g, '').slice(0, 80);
     try { if (Date.now() - Number(sessionStorage.getItem(dk) || 0) < 18e5) return; } catch (e) {}
-    var title = form.getAttribute('aria-label') || form.getAttribute('data-name') || form.getAttribute('name') || form.id || '';
-    if (!title || /^(form|wpforms-form-\d+|gform_\d+)$/i.test(title)) { var h = form.querySelector('h1,h2,h3,h4,legend'); title = (h && h.textContent.trim()) || document.title; }
+    var title = formName(form);
     var hit = { t: 'form', form: String(title).slice(0, 100), f: f, email: email, phone: phone, name: name };
     /* Wait a moment and look at the form again: if the site's own check rejected it (a required field,
        a bad email, a failed captcha), it isn't a lead yet. If the page is leaving, send straight away. */
@@ -103,6 +102,32 @@
     function go() { if (done) return; done = true; window.removeEventListener('pagehide', go); try { sessionStorage.setItem(dk, String(Date.now())); } catch (e) {} send(hit); }
     window.addEventListener('pagehide', go);
     setTimeout(function () { if (done) return; if (rejected(form)) { done = true; window.removeEventListener('pagehide', go); return; } go(); }, 1800);
+  }
+  /* The form's name as the website shows it: the form builder's own title, a label on the form, a
+     heading in or just above it, and only then the page's title. */
+  var GENERIC = /^(form|forms?\s*\d*|contact|contact\s*form\s*\d*|new form|untitled( form)?|wpforms-form-\d+|gform_\d+|elementor-form|et_pb_contact_form.*|\d+)$/i;
+  function txt(el) { return el ? String(el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 100) : ''; }
+  function okName(t) { return t && t.length > 1 && t.length <= 90 && !GENERIC.test(t) ? t : ''; }
+  function formName(form) {
+    var t = '', box, i, el, s, h;
+    var builders = [['.et_pb_contact_form_container', '.et_pb_contact_main_title'], ['.gform_wrapper', '.gform_title'], ['.wpforms-container', '.wpforms-title'],
+      ['.nf-form-cont', '.nf-form-title'], ['.frm_forms', '.frm_form_title'], ['.fluentform', '.ff-form-title'], ['.elementor-widget-form', '.elementor-heading-title']];
+    for (i = 0; i < builders.length && !t; i++) { box = form.closest ? form.closest(builders[i][0]) : null; if (box) t = okName(txt(box.querySelector(builders[i][1]))); }
+    if (!t) { var lb = form.getAttribute('aria-labelledby'); if (lb) t = okName(txt(document.getElementById(lb.split(' ')[0]))); }
+    if (!t) t = okName(form.getAttribute('aria-label') || '') || okName(form.getAttribute('data-name') || '') || okName(form.getAttribute('data-form-name') || '') || okName(form.getAttribute('title') || '') || okName(form.getAttribute('name') || '');
+    if (!t) t = okName(txt(form.querySelector('legend, h1, h2, h3, h4')));
+    /* the closest heading above the form, a few levels up */
+    var stop = false;
+    for (el = form, i = 0; !t && !stop && el && el !== document.body && i < 5; i++, el = el.parentElement) {
+      for (s = el.previousElementSibling; s && !t; s = s.previousElementSibling) {
+        if (s.tagName === 'FORM' || (s.querySelector && s.querySelector('form'))) { stop = true; break; }   /* another form's heading */
+        h = /^H[1-4]$/.test(s.tagName) ? s : (s.querySelectorAll ? s.querySelectorAll('h1, h2, h3, h4') : []);
+        if (h && h.length !== undefined) h = h[h.length - 1];
+        t = okName(txt(h));
+      }
+    }
+    if (!t) t = okName(String(document.title || '').split(/\s+[|\u2013\u2014-]\s+/)[0].trim()) || 'Website form';
+    return t;
   }
   function rejected(form) {
     if (!form.isConnected) return false;
