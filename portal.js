@@ -204,9 +204,9 @@ function regionOf(r){
 const pathOf = r => { const p = String(r.page || '').split('?')[0]; return p || ''; };
 
 /* ---------- widgets ---------- */
-const T = {forms: '#1d7cf2', calls: '#0f9d6b', contacts: '#7c3aed', opps: '#d97706', appts: '#db2777', mix: '#14b8a6', email: '#6d5cf6', loc: '#e8590c'};
+const T = {web: '#0086ff', forms: '#1d7cf2', calls: '#0f9d6b', contacts: '#7c3aed', opps: '#d97706', appts: '#db2777', mix: '#14b8a6', email: '#6d5cf6', loc: '#e8590c'};
 const W = {
-  kpis: {g: 'Overview', t: 'At a glance', d: 'Leads, calls, new contacts, bookings and pipeline, compared with the period before.', ic: 'bolt', tint: T.mix, c: 12, sk: 'kpis', needs: ['forms', 'calls', 'contacts', 'appts', 'opps'], soft: true, ds: 'Form leads and calls from your website, compared with the period before.', draw: drawKpis},
+  kpis: {g: 'Overview', t: 'At a glance', d: 'Leads, calls, new contacts, bookings and pipeline, compared with the period before.', ic: 'bolt', tint: T.mix, c: 12, sk: 'kpis', needs: ['forms', 'calls', 'contacts', 'appts', 'opps', 'ga'], soft: true, ds: 'Form leads and calls from your website, compared with the period before.', draw: drawKpis},
   inbox: {g: 'Leads', t: 'Lead inbox', d: 'Every form submission in one searchable inbox: filter by city, source, form and page.', ic: 'inbox', tint: '#0f7a58', c: 12, sk: 'inbox', needs: ['forms'], draw: drawInbox},
   trend: {g: 'Leads', t: 'Leads over time', d: 'Form submissions, calls and new contacts, day by day.', ic: 'line', tint: T.forms, c: 8, sk: 'chart', needs: ['forms', 'calls', 'contacts'], soft: true, ds: 'Form leads and calls from your website, day by day.', draw: drawTrend},
   sources: {g: 'Leads', t: 'Lead sources', d: 'Where your form leads came from: organic, paid, direct, social and more.', ic: 'donut', tint: '#16a37a', c: 4, sk: 'chart', needs: ['forms'], draw: drawSources},
@@ -223,12 +223,18 @@ const W = {
   pipeline: {g: 'Sales', t: 'Pipeline by stage', d: 'Open opportunities in each stage, with their value.', ic: 'funnel', tint: T.opps, c: 6, sk: 'list', needs: ['opps'], draw: drawPipeline},
   opps_list: {g: 'Sales', t: 'Latest opportunities', d: 'New and updated deals, with value and status.', ic: 'money', tint: T.opps, c: 6, sk: 'list', needs: ['opps'], draw: drawOpps},
   appts: {g: 'Sales', t: 'Appointments', d: 'Upcoming bookings, and the ones in the period.', ic: 'cal', tint: T.appts, c: 6, sk: 'list', needs: ['appts'], draw: drawAppts},
+  web_kpis: {g: 'Website', t: 'Website at a glance', d: 'Visits, visitors, page views and how many visits turned into leads, from Google Analytics.', ic: 'source', tint: '#0086ff', c: 12, sk: 'kpis', needs: ['ga', 'forms'], soft: true, ga: true, draw: drawWebKpis},
+  web_trend: {g: 'Website', t: 'Visits and leads over time', d: 'Website visits day by day, with the leads they brought in.', ic: 'line', tint: '#0086ff', c: 8, sk: 'chart', needs: ['ga', 'forms'], soft: true, ga: true, draw: drawWebTrend},
+  web_sources: {g: 'Website', t: 'Where visitors come from', d: 'Visits by channel: search, ads, social, email, other sites and direct.', ic: 'donut', tint: '#16a37a', c: 4, sk: 'chart', needs: ['ga'], ga: true, draw: drawWebSources},
+  web_pages: {g: 'Website', t: 'Most visited pages', d: 'The pages people look at most, with how many people saw each.', ic: 'book', tint: '#0891b2', c: 6, sk: 'list', needs: ['ga'], ga: true, draw: drawWebPages},
+  web_cities: {g: 'Website', t: 'Where visitors are', d: 'Visitors by city, from Google Analytics.', ic: 'pin', tint: T.loc, c: 6, sk: 'list', needs: ['ga'], ga: true, draw: drawWebCities},
   note: {g: 'Text', t: 'Heading & summary', d: 'A heading and a short write-up. Attach it to a widget and it explains that widget’s numbers in plain words.', ic: 'spark', tint: '#475569', c: 12, sk: 'note', needs: [], draw: drawNote}
 };
 /* Where this business's data comes from: its Easyleads account, or the EDGE tracker (website forms, phone taps). */
 const SITE_K = {forms: 1, calls: 1};
 const srcOf = () => ((S.me && S.me.clients.find(c => c.domain === S.domain)) || {}).source || 'easyleads';
-const okFor = t => { const w = W[t]; if (!w) return false; if (w.only && w.only.indexOf(S.domain) < 0) return false; if (t === 'note' || srcOf() === 'easyleads') return true; if (w.el) return false; return w.soft ? w.needs.some(k => SITE_K[k]) : w.needs.every(k => SITE_K[k]); };
+const gaOn = () => !!((S.me && S.me.clients.find(c => c.domain === S.domain)) || {}).ga;
+const okFor = t => { const w = W[t]; if (!w) return false; if (w.only && w.only.indexOf(S.domain) < 0) return false; if (w.ga) return gaOn(); if (t === 'note' || srcOf() === 'easyleads') return true; if (w.el) return false; return w.soft ? w.needs.some(k => SITE_K[k]) : w.needs.every(k => SITE_K[k]); };
 const needsOf = it => it.t === 'note' ? (it.about && W[it.about] && it.about !== 'note' ? W[it.about].needs : []) : W[it.t].needs;
 /* Anything a business can't have yet is left out of its report entirely (it stays in the layout, so it shows up by itself once available). */
 const visIt = it => it.t === 'note' ? (!it.about || okFor(it.about)) : okFor(it.t);
@@ -272,6 +278,7 @@ const DEFAULT_DASHES = src => {
 function errHtml(e){
   if (e && e.code === 'scope') return '<div class="err">' + ic('lock', 22) + '<br><b>Not switched on yet</b><br>This needs “' + esc(e.scope) + '” access on your ' + esc(BRAND) + ' account. Your Easyleads team can turn it on for you.</div>';
   if (e && e.code === 'hidden') return '<div class="err">' + ic('lock', 22) + '<br><b>Hidden from this business</b><br>They don’t see this widget. It shows up for them by itself once it’s available.</div>';
+  if (e && /^ga_/.test(e.code || '')) return '<div class="err">' + ic('lock', 22) + '<br><b>Google Analytics isn’t answering</b><br>' + (e.code === 'ga_access' ? 'Access to the Google Analytics property was removed.' : 'The Google Analytics property couldn’t be read.') + ' Your Easyleads team can reconnect it.</div>';
   if (e && e.code === 'notavailable') return '<div class="err">' + ic('lock', 22) + '<br><b>Not available for this business</b><br>This widget needs an ' + esc(BRAND) + ' account. Your Easyleads team can tell you more.</div>';
   if (e && e.code === 'notconnected') return '<div class="err"><b>Your ' + esc(BRAND) + ' account isn’t connected yet.</b><br>Your Easyleads team will let you know when it’s ready.</div>';
   return '<div class="err">Couldn’t load this right now.<br><span style="font-size:12px">' + esc(e && e.message || e) + '</span></div>';
@@ -383,6 +390,8 @@ function drawKpis(h, D){
   if (D.appts){ const up = D.appts.rows.filter(a => a.at >= Date.now()).length; t.push(tile('appts', 'Appointments', fmt(D.appts.rows.filter(a => inR(a, r)).length), '', up + ' upcoming', 'cal', T.appts, spark(daySeries(D.appts.rows, r), T.appts))); }
   if (D.opps){ const open = D.opps.rows.concat(D.opps.prev).filter(o => o.status === 'open'), won = D.opps.all.filter(o => o.status === 'won' && inR({at: o.upd || o.at}, r));
     t.push(tile('pipeline', 'Open pipeline', money(open.reduce((s, o) => s + o.value, 0)), '', open.length + ' open · ' + won.length + ' won · ' + money(won.reduce((s, o) => s + o.value, 0)), 'money', T.opps)); }
+  if (D.ga){ const a = D.ga.rows.filter(x => x.t === 'd'), b = D.ga.prev.filter(x => x.t === 'd'), sa = gaSum(a, 's'), sb = gaSum(b, 's');
+    t.push(tile('web_kpis', 'Website visits', fmt(sa), delta(sa, sb), D.forms && sa ? pct(D.forms.rows.length, sa) + ' became leads' : fmt(gaSum(a, 'n')) + ' new visitors', 'source', T.web, spark(gaSeries(a, r, 's'), T.web))); }
   void pr;
   h.innerHTML = t.length ? '<div class="kpis fade-in">' + t.join('') + '</div>' : '<div class="empty">Nothing to show yet.</div>';
   h.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => openList(b.dataset.go)));
@@ -595,6 +604,53 @@ function leadsDrawer(title, sub, rows, icon){
 function drawForms(h, D){
   listWith(h, D.forms.rows, f => ({title: f.name || f.email || f.phone || 'New submission', sub: esc(f.form) + (cityOf(f) ? ' · ' + esc(cityOf(f)) : '') + (f.email ? ' · ' + esc(f.email) : ''), right: esc(when(f.at))}),
     openSubmission, 'No form submissions in this period.', 6);
+}
+/* ----- website traffic (Google Analytics) ----- */
+const gaSum = (rows, k) => rows.reduce((s, x) => s + (Number(x[k]) || 0), 0);
+function gaSeries(rows, r, k){ const days = Math.round((r.e - r.s) / day) + 1, a = new Array(days).fill(0); rows.forEach(x => { const i = Math.floor((x.at - r.s) / day); if (i >= 0 && i < days) a[i] += Number(x[k]) || 0; }); return a; }
+const gaGroup = (rows, kf, vf) => { const m = {}; rows.forEach(x => { const k = kf(x); if (!k) return; m[k] = (m[k] || 0) + vf(x); }); return Object.keys(m).map(k => ({k, n: m[k]})).sort((a, b) => b.n - a.n); };
+const gaNone = '<div class="empty">No website visits recorded in this period yet.</div>';
+function drawWebKpis(h, D){
+  const r = range(), a = D.ga.rows.filter(x => x.t === 'd'), b = D.ga.prev.filter(x => x.t === 'd');
+  const tile = (label, val, d, note, icon, tint, sp) => '<div class="kpi" style="--t:' + tint + ';cursor:default"><div class="l">' + esc(label) + ic(icon, 16) + '</div><div class="v">' + val + (d || '') + '</div><div class="n">' + note + '</div>' + (sp || '') + '</div>';
+  const S1 = k => gaSum(a, k), S0 = k => gaSum(b, k);
+  const er = x => x.s ? Math.round(x.e / x.s * 100) : 0, eA = er({s: S1('s'), e: S1('e')}), eB = er({s: S0('s'), e: S0('e')});
+  const t = [
+    tile('Visits', fmt(S1('s')), delta(S1('s'), S0('s')), 'vs ' + fmt(S0('s')) + ' the period before', 'source', T.web, spark(gaSeries(a, r, 's'), T.web)),
+    tile('New visitors', fmt(S1('n')), delta(S1('n'), S0('n')), 'people seeing the site for the first time', 'users', '#7c3aed', spark(gaSeries(a, r, 'n'), '#7c3aed')),
+    tile('Page views', fmt(S1('v')), delta(S1('v'), S0('v')), S1('s') ? (S1('v') / S1('s')).toFixed(1) + ' pages per visit' : '—', 'book', '#0891b2', spark(gaSeries(a, r, 'v'), '#0891b2')),
+    tile('Engaged visits', eA + '%', '', 'stayed 10 s+, viewed 2+ pages or acted · was ' + eB + '%', 'target', '#16a37a')];
+  if (D.forms) t.push(tile('Visits that became leads', S1('s') ? pct(D.forms.rows.length, S1('s')) : '—', '', fmt(D.forms.rows.length) + ' form leads · was ' + (S0('s') ? pct(D.forms.prev.length, S0('s')) : '—'), 'form', T.forms));
+  else if (S1('k') || S0('k')) t.push(tile('Key events', fmt(S1('k')), delta(S1('k'), S0('k')), 'conversions set up in Google Analytics', 'bolt', T.forms));
+  h.innerHTML = a.length || b.length ? '<div class="kpis fade-in">' + t.join('') + '</div>' : gaNone;
+}
+function drawWebTrend(h, D){
+  const r = range(), days = Math.round((r.e - r.s) / day) + 1, labels = [];
+  for (let i = 0; i < days; i++) labels.push(new Date(r.s + i * day).toLocaleDateString('en-CA', {month: 'short', day: 'numeric'}));
+  const a = D.ga.rows.filter(x => x.t === 'd');
+  if (!a.length){ h.innerHTML = gaNone; return; }
+  const series = [{name: 'Visits', values: gaSeries(a, r, 's'), color: T.web}, {name: 'New visitors', values: gaSeries(a, r, 'n'), color: '#7c3aed'}];
+  if (D.forms) series.push({name: 'Form leads', values: daySeries(D.forms.rows, r), color: '#0f9d6b'});
+  lineChart(h, labels, series, 240);
+}
+function drawWebSources(h, D){
+  const g = gaGroup(D.ga.rows.filter(x => x.t === 'c'), x => x.ch === '(not set)' || x.ch === 'Unassigned' ? 'Other' : x.ch, x => x.s);
+  const segs = g.map(x => ({label: x.k, n: x.n, color: chColor(chGroup(x.k))}));
+  const fix = {}; segs.forEach(sg => { if (fix[sg.color]) sg.color = ['#94a3b8', '#64748b', '#b45309', '#0e7490', '#9333ea'][fix[sg.color]++ % 5]; else fix[sg.color] = 1; });
+  if (!segs.length){ h.innerHTML = gaNone; return; }
+  const tot = segs.reduce((s, x) => s + x.n, 0);
+  h.innerHTML = '<div class="donutrow fade-in">' + donut(segs, 'VISITS') + legend(segs, tot) + '</div>';
+}
+function drawWebPages(h, D){
+  const rows = D.ga.rows.filter(x => x.t === 'p'), users = {}; rows.forEach(x => { users[x.p] = (users[x.p] || 0) + x.u; });
+  const items = gaGroup(rows, x => x.p, x => x.v).slice(0, 10).map(x => Object.assign(x, {label: x.k === '/' ? 'Home page' : x.k}));
+  const tot = items.reduce((s, x) => s + x.n, 0);
+  ranked(h, items, '#0891b2', {val: x => fmt(x.n) + ' views', sub: x => fmt(users[x.k] || 0) + ' visitors', empty: 'No page views recorded in this period yet.'});
+  void tot;
+}
+function drawWebCities(h, D){
+  const rows = D.ga.rows.filter(x => x.t === 'g'), tot = gaSum(rows, 'u');
+  ranked(h, gaGroup(rows, x => x.city + (x.region && x.region !== '(not set)' ? ', ' + x.region : ''), x => x.u).slice(0, 10), T.loc, {sub: x => pct(x.n, tot) + ' of visitors', empty: 'No visitor locations recorded in this period yet.'});
 }
 /* ----- email marketing ----- */
 const subjKey = t => String(t || '').replace(/^\s*((re|fw|fwd|aw|tr)\s*:\s*)+/i, '').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -901,6 +957,13 @@ function layout(){
     if (!L.dashes.some(d => d.items.some(i => i.t === 'people'))){ const sales = L.dashes.find(d => /sales/i.test(d.name)); if (sales) sales.items.push(item('people')); else L.dashes.push({id: uid(), name: 'Contacts', items: [item('people')]}); }
     L.v = LAYOUT_V; setTimeout(saveLayout, 0);
   }
+  /* A business with Google Analytics connected gets a Website tab, once. */
+  if (gaOn() && !S.layout.dashes.some(d => d.items.some(i => W[i.t] && W[i.t].ga && i.t !== 'kpis'))){
+    S.layout.dashes.splice(Math.min(1, S.layout.dashes.length), 0, {id: uid(), name: 'Website', items: [
+      item('note', 12, {title: 'Your website', about: 'web_kpis', text: 'Visits, visitors and pages from Google Analytics, and how many visits turned into leads, compared with the period before.'}),
+      item('web_kpis'), item('web_trend', 8, {h: 420}), item('web_sources', 4, {h: 420}), item('web_pages', 6, {h: 440}), item('web_cities', 6, {h: 440})]});
+    if (canEdit()) setTimeout(saveLayout, 0);
+  }
   /* Widgets made for one client appear on their dashboard by themselves (hidden everywhere else). */
   Object.keys(W).filter(t => W[t].only && W[t].only.indexOf(S.domain) > -1).forEach(t => {
     const L = S.layout;
@@ -1018,7 +1081,7 @@ function drawGrid(dash){
     const body = el.querySelector('[data-body]');
     const needs = needsOf(it);
     if (!visIt(it)){ body.innerHTML = errHtml({code: 'hidden'}); el.style.opacity = '.6'; }
-    else { const load = () => Promise.all(needs.filter(k => srcOf() === 'easyleads' || SITE_K[k]).map(k => get(k).then(v => [k, v], e => [k, null, e]))).then(res => {
+    else { const load = () => Promise.all(needs.filter(k => k === 'ga' ? gaOn() : (srcOf() === 'easyleads' || SITE_K[k])).map(k => get(k).then(v => [k, v], e => [k, null, e]))).then(res => {
       if (!body.isConnected) return;
       const D = {}, errs = [];
       res.forEach(r => { if (r[1]) D[r[0]] = r[1]; else errs.push(r[2]); });
