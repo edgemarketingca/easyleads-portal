@@ -276,6 +276,31 @@ textarea.in{height:auto;padding:10px 13px}
 .signbox p{color:var(--mute);margin:0 0 20px}
 .boot{display:grid;justify-items:center;gap:16px;color:var(--mute);font-weight:500;font-size:13.5px}
 .boot .orb{margin:0}
+
+.garow{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--mute);padding:9px 12px;border-radius:12px;border:1px solid var(--line-2);background:#fff;width:100%;text-align:left}
+.garow svg{width:15px;height:15px;color:#e8710a;flex:none}
+.garow b{color:var(--ink);font-weight:600}
+.garow span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.garow.add{border-style:dashed;border-color:#d5d9e1;cursor:pointer;font-weight:550;transition:border-color .2s,color .2s,background .2s}
+.garow.add:hover{border-color:#e8710a;color:var(--ink);background:#fff8f1}
+.garow.add svg:last-child{color:var(--soft)}
+.steps li b.sel{display:inline;width:auto;height:auto;border-radius:6px;background:var(--brand-1);color:var(--brand-7);padding:1px 6px;font-size:12.5px;user-select:all}
+details.where{margin-top:12px;border:1px solid var(--line);border-radius:12px;padding:10px 13px}
+details.where summary{cursor:pointer;font-weight:600;font-size:13px;color:var(--ink-2);list-style:none;display:flex;align-items:center;gap:8px}
+details.where summary:before{content:"";width:6px;height:6px;border-right:1.6px solid currentColor;border-bottom:1.6px solid currentColor;transform:rotate(-45deg);transition:transform .2s}
+details.where[open] summary:before{transform:rotate(45deg)}
+details.where .steps{margin-top:10px}
+.drop{display:grid;justify-items:center;gap:4px;padding:26px 16px;border:1.5px dashed #cfd5df;border-radius:16px;background:var(--bg);cursor:pointer;text-align:center;transition:border-color .2s,background .2s}
+.drop:hover,.drop.over{border-color:var(--brand);background:var(--brand-1)}
+.drop.done{border-style:solid;border-color:#bfe3d2;background:var(--ok-1)}
+.drop .di{width:40px;height:40px;border-radius:12px;background:#fff;display:grid;place-items:center;color:var(--brand);box-shadow:0 1px 3px rgba(11,12,15,.08);margin-bottom:6px}
+.drop.done .di{color:var(--ok)}
+.drop b{font-size:14px}
+.drop small{color:var(--mute)}
+.map{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px 14px;margin-top:16px}
+.map label{display:grid;gap:5px;font-size:12px;font-weight:600;color:var(--ink-2)}
+.map select{height:38px;border:1px solid var(--line);border-radius:10px;padding:0 10px;background:#fff;font-size:13px}
+.map .in{height:38px}
 @media(max-width:1020px){.stats{grid-template-columns:repeat(3,1fr)}.stat:nth-child(4){border-left:0}.stat:nth-child(n+4){border-top:1px solid var(--line-2)}}
 @media(max-width:640px){.stats{grid-template-columns:1fr 1fr}.top .sub,.live{display:none}.top{padding:0 16px}main{padding:28px 16px 60px}.grid{grid-template-columns:1fr}.tabs{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}.card{opacity:1;transform:none}}
@@ -302,7 +327,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const app = $('#app');
 let KEY = '';
 try { KEY = sessionStorage.getItem(KEYS) || localStorage.getItem(KEYS) || ''; } catch (e) {}
-const S = { users: [], clients: [], info: {}, scopes: null, filter: 'all', q: '', site: {}, lg: {}, lgKey: {} };
+const S = { users: [], clients: [], info: {}, scopes: null, filter: 'all', q: '', site: {}, lg: {}, lgKey: {}, ga: null };
 const AREAS = [['forms', 'Forms'], ['calls', 'Calls'], ['contacts', 'Contacts'], ['opps', 'Pipeline'], ['appts', 'Bookings'], ['emails', 'Email']];
 const I = {
   check: '<svg class="i" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>',
@@ -324,6 +349,8 @@ const I = {
   out: '<svg class="i" viewBox="0 0 24 24"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h11"/></svg>',
   globe: '<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>',
   layers: '<svg class="i" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5z"/><path d="m3 13 9 5 9-5"/></svg>',
+  upload: '<svg class="i" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>',
+  chart: '<svg class="i" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
   copy: '<svg class="i" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>'
 };
 
@@ -522,11 +549,11 @@ function signIn() {
 
 /* ---------- console ---------- */
 async function fetchAll() {
-  const [a, b] = await Promise.all([call('portalAdminList'), call('elClients')]);
-  return { a, b };
+  const [a, b, g] = await Promise.all([call('portalAdminList'), call('elClients'), call('elGaList').catch(() => null)]);
+  return { a, b, g };
 }
 function apply(data) {
-  S.users = data.a.users || []; S.scopes = data.a.scopes;
+  S.users = data.a.users || []; S.scopes = data.a.scopes; if (data.g && data.g.ok) S.ga = data.g;
   const extra = {}; (data.b.clients || []).forEach(c => extra[c.domain] = c);
   S.clients = (data.a.clients || []).map(c => Object.assign({}, c, extra[c.domain] || {}));
   S.info = {}; S.clients.forEach(c => S.info[c.domain] = { logo: c.logo, icon: c.icon, site: c.site, sk: c.sk });
@@ -587,7 +614,7 @@ function card(c, idx) {
     const txt = bad.length ? '<em>Missing</em> ' + bad.join(', ') : err.length ? 'No answer from ' + err.join(', ') : ok === AREAS.length ? 'All ' + AREAS.length + ' data sources connected' : 'Checking data sources…';
     health = '<div class="health" title="' + esc(ss.map(x => x[0][1] + ': ' + (x[1] === 'ok' ? 'working' : x[1] === 'missing' ? 'needs permission' : x[1] === 'error' ? 'no answer' : 'not checked')).join(' · ')) + '"><div class="segs">' + ss.map(x => '<b class="' + (x[1] === 'missing' ? 'no' : x[1] === 'error' ? 'err' : x[1] === 'unknown' ? 'unk' : '') + '"></b>').join('') + '</div><span>' + txt + '</span></div>';
   } else if (c.site) {
-    health = '<div class="health" title="Website clients show form leads and phone taps. Pipeline, contacts, bookings and email need an Easyleads account."><div class="segs"><b></b><b></b><b class="off"></b><b class="off"></b><b class="off"></b><b class="off"></b></div><span>Form leads and phone taps</span></div>';
+    health = '<div class="health" title="Website clients show form leads and phone taps. Pipeline, contacts, bookings and email need an Easyleads account."><div class="segs"><b></b><b></b><b class="off"></b><b class="off"></b><b class="off"></b><b class="off"></b></div><span>Form leads and phone taps' + (gaOf(c) ? ' · website traffic' : '') + '</span></div>';
   }
   const st = S.site[c.domain];
   const seen = st ? Math.max(st.seen || 0, st.last || 0) : 0;
@@ -598,12 +625,15 @@ function card(c, idx) {
   const snip = c.site ? '<div class="snip"><span class="dot ' + (st ? (seen ? 'on' : 'wait') : '') + '"></span><span class="st">' + snipTxt + '</span><button class="link" data-x="snippet">' + I.code + 'Snippet</button></div>' : '';
   const menu = '<div class="menu"><button class="btn sm ghost icon" data-more aria-label="More">' + I.dots + '</button><div class="dd">' +
     (c.connected ? '<button data-x="recheck">' + I.refresh + 'Re-check access</button><button data-x="reconnect">' + I.key + 'Replace Location ID / token</button>' : '') +
-    (c.site ? '<button data-x="snippet">' + I.code + 'Get the snippet</button>' : '') +
+    (c.site ? '<button data-x="snippet">' + I.code + 'Get the snippet</button><button data-x="import">' + I.upload + 'Import past form submissions</button>' : '') +
+    '<button data-x="ga">' + I.chart + (gaOf(c) ? 'Change Google Analytics' : 'Connect Google Analytics') + '</button><hr>' +
     '<button data-x="logo">' + I.img + 'Find the logo again</button><button data-x="logourl">' + I.edit + 'Use my own logo</button><button data-x="rename">' + I.edit + 'Rename</button><hr><button data-x="remove" class="bad">' + I.trash + 'Remove client</button></div></div>';
   return '<div class="card' + (c.site ? ' site' : '') + '" data-d="' + esc(c.domain) + '" style="animation-delay:' + Math.min(idx, 14) * 45 + 'ms">' +
     '<div class="plate"><div class="tl">' + tag + '</div>' + logoHtml(c) + menu + '</div>' +
     '<div class="body"><div class="ch"><div class="nm"><h3 title="' + esc(c.name) + '">' + esc(c.name) + '</h3><div class="dm">' + I.globe + '<a href="https://' + esc(c.domain) + '" target="_blank" rel="noopener">' + esc(c.domain) + '</a></div></div></div>' +
     health + snip +
+    (gaOf(c) ? '<div class="garow">' + I.chart + '<span><b>Google Analytics</b> · property ' + esc(gaOf(c)) + '</span><button class="link" data-x="ga">Change</button></div>'
+      : c.site ? '<button class="garow add" data-x="ga">' + I.chart + '<span>Connect Google Analytics</span>' + I.plus + '</button>' : '') +
     '<div class="sep"></div>' +
     '<div class="row"><button class="tog' + (c.bot ? ' on' : '') + '" data-x="bot"><i></i>Assistant ' + (c.bot ? 'on' : 'off') + '</button>' + (c.bot ? '<button class="link" data-x="chats">' + I.chat + 'Read chats</button>' : '') + '</div>' +
     '<div class="users">' + us.map(u => '<div class="user' + (u.disabled ? ' off' : '') + '" data-u="' + esc(u.id) + '"><div class="av">' + esc(initials(u.name || u.email)) + '</div><div class="who"><b>' + esc(u.name || u.email) + (u.disabled ? ' · off' : '') + '</b><small>' + esc(u.email) + ' · ' + ago(u.lastSeen || u.lastLogin) + '</small></div>' +
@@ -643,9 +673,124 @@ function showSnippet(c) {
     '<div class="code" data-code>' + esc(code) + '<button class="btn sm" data-cp>' + I.copy + 'Copy</button></div>' +
     '<ul class="steps"><li><b>1</b><span><b>WordPress:</b> a header &amp; footer plugin (e.g. WPCode) → Footer, or your theme’s footer.</span></li><li><b>2</b><span><b>Concrete CMS:</b> Dashboard → System &amp; Settings → SEO &amp; Statistics → Tracking Codes → Footer.</span></li><li><b>3</b><span><b>Wix / Squarespace / Shopify:</b> Settings → Custom code → Body end, all pages.</span></li><li><b>4</b><span>Open the website once: within a minute this card says <b>Snippet installed</b>. A test form submission then shows as the first lead.</span></li></ul>' +
     '<div class="note">Captured: what visitors type into contact forms (never passwords or payment fields) and taps on phone numbers, with where they came from. Mention website forms in the client’s privacy policy.</div>' +
-    '<div class="mf"><button class="btn" data-close>Done</button></div>', true);
+    '<div class="mf"><button class="btn" data-imp style="margin-right:auto">' + I.upload + 'Import past submissions</button>' + (gaOf(c) ? '' : '<button class="btn" data-ga>' + I.chart + 'Connect Google Analytics</button>') + '<button class="btn pri" data-close>Done</button></div>', true);
+  $('[data-imp]', m.el).onclick = () => { m.close(); importForm(c); };
+  const gb = $('[data-ga]', m.el); if (gb) gb.onclick = () => { m.close(); gaForm(c); };
   $('[data-cp]', m.el).onclick = e => navigator.clipboard.writeText(code).then(() => { toast('Snippet copied'); const r = e.target.getBoundingClientRect(); burst(r.left + r.width / 2, r.top); });
 }
+
+/* ---------- Google Analytics ---------- */
+const gaOf = c => (S.ga && S.ga.d && S.ga.d[c.domain]) || c.ga || '';
+const gaAccount = () => (S.ga && S.ga.account) || 'the Google account that owns the Easyleads backend';
+const gaSteps = () => '<ul class="steps"><li><b>1</b><span>In <b>Google Analytics</b>, open the client’s property → <b>Admin</b> → <b>Property access management</b> → <b>+</b> → <b>Add users</b>.</span></li>' +
+  '<li><b>2</b><span>Add <b class="sel">' + esc(gaAccount()) + '</b> with the <b>Viewer</b> role (no notification needed).</span></li>' +
+  '<li><b>3</b><span><b>Admin</b> → <b>Property settings</b> → copy the <b>Property ID</b> (a number like 312345678; not the G-… measurement ID).</span></li></ul>';
+function gaForm(c) {
+  const cur = gaOf(c);
+  const m = modal('<h2>Google Analytics · ' + esc(c.name) + '</h2><p class="s">Adds website visitors, traffic sources, top pages and visitor cities to their dashboard, next to their leads.</p>' + gaSteps() +
+    '<form><label class="f">GA4 property ID</label><input class="in" name="ga" inputmode="numeric" placeholder="312345678" value="' + esc(cur) + '"><div class="err" hidden></div>' +
+    '<div class="mf">' + (cur ? '<button type="button" class="btn bad" data-off style="margin-right:auto">Disconnect</button>' : '') + '<button type="button" class="btn" data-close>Cancel</button><button class="btn pri">' + (cur ? 'Save' : 'Connect Google Analytics') + '</button></div></form>');
+  const f = $('form', m.el);
+  const save = async ga => {
+    m.close();
+    try {
+      await stage(ga ? 'Connecting Google Analytics' : 'Disconnecting Google Analytics', ga ? ['Reaching Google Analytics', 'Checking access to property ' + ga, 'Saving'] : ['Saving'], async () => { await call('elSetGa', { domain: c.domain, ga }); await refresh(); }, ga ? 'Google Analytics connected' : 'Disconnected');
+      toast(ga ? 'Google Analytics connected for ' + c.name : 'Google Analytics disconnected');
+    } catch (err) { setTimeout(() => gaForm(Object.assign({}, c, { ga: ga })), 400); }
+  };
+  f.onsubmit = e => { e.preventDefault(); const v = f.ga.value.replace(/[^\d]/g, ''); if (!v) { const er = $('.err', f); er.hidden = false; er.textContent = 'Paste the property ID: numbers only.'; return; } save(v); };
+  const off = $('[data-off]', f); if (off) off.onclick = () => save('');
+}
+
+/* ---------- older form submissions ---------- */
+function parseCsv(text) {
+  text = String(text || '').replace(/^﻿/, '');
+  const first = text.split(/\r?\n/)[0] || '', cnt = ch => first.split(ch).length;
+  const d = cnt('\t') > cnt(',') && cnt('\t') > cnt(';') ? '\t' : cnt(';') > cnt(',') ? ';' : ',';
+  const rows = []; let row = [], cell = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) { if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += ch; continue; }
+    if (ch === '"') q = true;
+    else if (ch === d) { row.push(cell); cell = ''; }
+    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(cell); cell = ''; if (row.some(x => x.trim())) rows.push(row); row = []; }
+    else cell += ch;
+  }
+  row.push(cell); if (row.some(x => x.trim())) rows.push(row);
+  return rows;
+}
+function parseWhen(v) {
+  v = String(v || '').trim(); if (!v) return 0;
+  if (/^\d{10}$/.test(v)) return Number(v) * 1000;
+  if (/^\d{13}$/.test(v)) return Number(v);
+  let m = v.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})(?:[ ,T]+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([ap]\.?m\.?)?)?/i);
+  if (m) {
+    let a = +m[1], b = +m[2], y = +m[3]; if (y < 100) y += 2000;
+    let mo = a, dd = b; if (a > 12) { mo = b; dd = a; }
+    let h = +(m[4] || 0); const mi = +(m[5] || 0), s = +(m[6] || 0);
+    if (m[7]) { const pm = /p/i.test(m[7]); if (pm && h < 12) h += 12; if (!pm && h === 12) h = 0; }
+    return new Date(y, mo - 1, dd, h, mi, s).getTime();
+  }
+  const t = Date.parse(v.replace(/^(\d{4}-\d{2}-\d{2}) (\d)/, '$1T$2')); return isNaN(t) ? 0 : t;
+}
+const IMP_FIELDS = [['at', 'Date submitted', /^(date|time|submitted|created|entry date|date created|date submitted|timestamp|submission date|received)/i],
+  ['name', 'Full name', /^(full ?name|your[- ]?name|name|contact name)$/i], ['first', 'First name', /first/i], ['last', 'Last name', /last|surname|family/i],
+  ['email', 'Email', /e-?mail/i], ['phone', 'Phone', /phone|tel|mobile|cell/i], ['company', 'Company', /company|business|organi[sz]ation/i],
+  ['message', 'Message', /message|comment|details|enquiry|inquiry|question|notes?|project|description/i], ['form', 'Form name', /^(form|form name|form title|source form)$/i], ['page', 'Page', /page|url|referr?er|source url/i]];
+function importForm(c) {
+  const m = modal('<h2>Import past form submissions · ' + esc(c.name) + '</h2><p class="s">Bring in leads from before the snippet was installed. Importing the same file twice adds nothing new.</p>' +
+    '<label class="drop" data-drop><input type="file" accept=".csv,.tsv,.txt,text/csv" hidden><span class="di">' + I.upload + '</span><b>Drop a CSV file here</b><small>or click to choose one</small></label>' +
+    '<details class="where"><summary>Where do I get this file?</summary><ul class="steps">' +
+    '<li><b>·</b><span><b>WPForms</b>: WPForms → Entries → pick the form → Export All (CSV).</span></li>' +
+    '<li><b>·</b><span><b>Gravity Forms</b>: Forms → Import/Export → Export Entries.</span></li>' +
+    '<li><b>·</b><span><b>Contact Form 7</b>: with the Flamingo plugin, Flamingo → Inbound Messages → Export.</span></li>' +
+    '<li><b>·</b><span><b>Elementor Pro</b>: Elementor → Submissions → Export to CSV.</span></li>' +
+    '<li><b>·</b><span><b>Divi, Squarespace, Wix and others that only send emails</b>: export the notification emails (or the form’s entries, if the platform keeps them) to a spreadsheet and save it as CSV.</span></li></ul></details>' +
+    '<div data-map></div><div class="err" hidden></div><div class="mf"><button type="button" class="btn" data-close>Cancel</button><button class="btn pri" data-go disabled>Import</button></div>', true);
+  const drop = $('[data-drop]', m.el), inp = $('input', drop), mapBox = $('[data-map]', m.el), go = $('[data-go]', m.el), er = $('.err', m.el);
+  let head = [], body = [], map = {};
+  const read = file => { if (!file) return; const r = new FileReader(); r.onload = () => {
+    const rows = parseCsv(r.result); if (rows.length < 2) { er.hidden = false; er.textContent = 'That file has no rows to import.'; return; }
+    er.hidden = true; head = rows[0].map(h => h.trim()); body = rows.slice(1); map = {};
+    IMP_FIELDS.forEach(f => { const i = head.findIndex((h, k) => f[2].test(h) && !Object.values(map).includes(k)); if (i > -1) map[f[0]] = i; });
+    drop.classList.add('done'); drop.innerHTML = '<span class="di">' + I.check + '</span><b>' + esc(file.name) + '</b><small>' + fmtN(body.length) + ' rows · ' + head.length + ' columns</small>';
+    paint();
+  }; r.readAsText(file); };
+  inp.onchange = () => read(inp.files[0]);
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+  drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); read(e.dataTransfer.files[0]); });
+  const fmtN = n => Number(n).toLocaleString('en-CA');
+  const build = () => body.map(r => {
+    const g = k => map[k] != null ? String(r[map[k]] || '').trim() : '';
+    const f = {}; head.forEach((h, i) => { if (h && String(r[i] || '').trim()) f[h] = String(r[i]).trim(); });
+    const name = g('name') || [g('first'), g('last')].filter(Boolean).join(' ');
+    return { at: parseWhen(g('at')), name, email: g('email'), phone: g('phone'), company: g('company'), message: g('message'), form: g('form') || ($('[data-fname]', m.el) || {}).value || 'Website form', page: g('page'), f };
+  });
+  const paint = () => {
+    const rows = build(), ok = rows.filter(x => x.at && (x.email || x.phone || x.name || x.message)), ts = ok.map(x => x.at).sort((a, b) => a - b);
+    mapBox.innerHTML = '<div class="map">' + IMP_FIELDS.map(f => '<label><span>' + f[1] + '</span><select data-k="' + f[0] + '"><option value="">—</option>' + head.map((h, i) => '<option value="' + i + '"' + (map[f[0]] === i ? ' selected' : '') + '>' + esc(h || 'Column ' + (i + 1)) + '</option>').join('') + '</select></label>').join('') +
+      (map.form == null ? '<label><span>Form name for all rows</span><input class="in" data-fname value="' + esc(($('[data-fname]', m.el) || {}).value || 'Website form') + '"></label>' : '') + '</div>' +
+      '<div class="note"><b>' + fmtN(ok.length) + '</b> of ' + fmtN(rows.length) + ' rows are ready' + (ts.length ? ', from <b>' + new Date(ts[0]).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' }) + '</b> to <b>' + new Date(ts[ts.length - 1]).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' }) + '</b>' : '') + '.' +
+      (rows.length - ok.length ? ' ' + fmtN(rows.length - ok.length) + ' have no readable date or no details and will be left out.' : '') + ' Every column is kept with the lead.</div>';
+    $$('select', mapBox).forEach(s => s.onchange = () => { if (s.value === '') delete map[s.dataset.k]; else map[s.dataset.k] = Number(s.value); paint(); });
+    const fn = $('[data-fname]', m.el); if (fn) fn.onchange = paint;
+    go.disabled = !ok.length; go.textContent = ok.length ? 'Import ' + fmtN(ok.length) + ' leads' : 'Import';
+  };
+  go.onclick = async () => {
+    const rows = build().filter(x => x.at && (x.email || x.phone || x.name || x.message));
+    m.close();
+    const parts = []; for (let i = 0; i < rows.length; i += 400) parts.push(rows.slice(i, i + 400));
+    let added = 0, skipped = 0;
+    try {
+      await stage('Importing ' + fmtN(rows.length) + ' leads', ['Reading the file', 'Matching the columns', 'Skipping anything already imported', 'Adding them to ' + c.name + '’s dashboard'], async () => {
+        for (const p of parts) { const j = await call('elImportLeads', { domain: c.domain, rows: p }); added += j.added || 0; skipped += j.skipped || 0; }
+      }, fmtN(added) + ' leads imported');
+      toast(fmtN(added) + ' imported' + (skipped ? ' · ' + fmtN(skipped) + ' already there' : ''));
+    } catch (err) {}
+  };
+}
+const normD = d => String(d || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '');
 
 /* New client: an Easyleads account, or a website with the snippet. */
 function clientForm(c) {
@@ -660,6 +805,8 @@ function clientForm(c) {
     '<div class="note">Give the token these read-only permissions: View Forms, View Custom Fields, View Contacts, View Conversation Messages, View Opportunities, View Calendars, View Calendar Events.</div></div>' +
     '<div data-site class="hid"><ul class="gets"><li>' + I.check + 'Every contact-form submission, with where the visitor came from</li><li>' + I.check + 'Taps on their phone number, from mobile visitors</li><li>' + I.check + 'Their logo, found automatically</li><li class="off">' + I.x + 'Pipeline, contacts, bookings and email (these need Easyleads)</li></ul>' +
     '<div class="note">After you create the client you’ll get a <b>one-line snippet</b> to paste on their website. No Easyleads account or login details needed.</div></div></div>' +
+    (edit ? '' : '<label class="f">Google Analytics property ID <small>optional · adds visitors, traffic sources and top pages</small></label><input class="in" name="ga" inputmode="numeric" placeholder="312345678">' +
+      '<details class="where"><summary>How to connect Google Analytics</summary>' + gaSteps() + '</details>') +
     '<div class="err" hidden></div><div class="mf"><button type="button" class="btn" data-close>Cancel</button><button class="btn pri" data-go>' + (edit ? 'Save connection' : 'Connect client') + '</button></div></form>');
   const f = $('form', m.el);
   const setKind = k => { kind = k; $$('[data-tabs] button', m.el).forEach(b => b.classList.toggle('on', b.dataset.k === k)); if (!edit) { $('[data-el]', f).classList.toggle('hid', k !== 'el'); $('[data-site]', f).classList.toggle('hid', k !== 'site'); } $('[data-go]', f).innerHTML = k === 'site' ? 'Create website client' : (edit ? 'Save connection' : 'Connect client'); };
@@ -672,10 +819,20 @@ function clientForm(c) {
     try {
       let j;
       if (kind === 'site') {
-        j = await stage('Adding ' + (v.name || 'the client'), ['Saving the website client', 'Finding their logo', 'Creating their snippet code', 'Getting the dashboard ready'], async () => { const r = await call('elAddSiteClient', v); await refresh(); return r; }, 'Website client ready');
+        const ga = String(v.ga || '').replace(/[^\d]/g, ''); let gaErr = '';
+        j = await stage('Adding ' + (v.name || 'the client'), ['Saving the website client', 'Finding their logo', 'Creating their snippet code'].concat(ga ? ['Connecting Google Analytics'] : []).concat(['Getting the dashboard ready']), async () => {
+          const r = await call('elAddSiteClient', v);
+          if (ga) { try { await call('elSetGa', { domain: r.domain, ga }); } catch (e) { gaErr = e.message; } }
+          await refresh(); return r; }, 'Website client ready');
+        if (gaErr) toast(gaErr, 1);
         const nc = S.clients.find(x => x.domain === j.domain); if (nc) showSnippet(nc);
       } else {
-        j = await stage(edit ? 'Replacing the connection' : 'Connecting ' + (v.name || 'the client'), ['Reaching their Easyleads account', 'Checking each permission', 'Finding their logo', 'Saving securely', 'Getting the dashboard ready'], async () => { const r = await call('elAddClient', v); await refresh(); return r; }, edit ? 'Connection replaced' : 'Client connected');
+        const ga = String(v.ga || '').replace(/[^\d]/g, ''); let gaErr = '';
+        j = await stage(edit ? 'Replacing the connection' : 'Connecting ' + (v.name || 'the client'), ['Reaching their Easyleads account', 'Checking each permission', 'Finding their logo', 'Saving securely'].concat(ga ? ['Connecting Google Analytics'] : []).concat(['Getting the dashboard ready']), async () => {
+          const r = await call('elAddClient', v);
+          if (ga) { try { await call('elSetGa', { domain: r.domain || normD(v.domain), ga }); } catch (e) { gaErr = e.message; } }
+          await refresh(); return r; }, edit ? 'Connection replaced' : 'Client connected');
+        if (gaErr) toast(gaErr, 1);
         if (j.missing && j.missing.length) toast('Connected. The token still needs: ' + j.missing.join(', '), 1); else toast(edit ? 'Connection replaced' : 'Client connected');
         if (!edit) { const nc = S.clients.find(x => x.domain === j.domain); if (nc && !usersOf(nc.domain).length) userForm(null, nc.domain); }
       }
@@ -722,6 +879,8 @@ async function clientAct(a, c) {
     if (a === 'login') return userForm(null, c.domain);
     if (a === 'reconnect') return clientForm(c);
     if (a === 'snippet') return showSnippet(c);
+    if (a === 'ga') return gaForm(c);
+    if (a === 'import') return importForm(c);
     if (a === 'bot') {
       await stage(c.bot ? 'Turning the assistant off' : 'Turning the assistant on', c.bot ? ['Updating ' + c.name, 'Saving'] : ['Updating ' + c.name, 'Preparing their dashboard data', 'Saving'], async () => { await call('portalAdminBot', { domain: c.domain, on: !c.bot }); await refresh(); }, 'Assistant ' + (c.bot ? 'off' : 'on'));
       return toast('Assistant ' + (c.bot ? 'off' : 'on') + ' for ' + c.name);
