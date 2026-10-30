@@ -82,12 +82,11 @@ main{max-width:1280px;margin:0 auto;padding:34px 30px 80px}
 @keyframes rise{to{opacity:1;transform:none}}
 .ch{display:flex;align-items:center;gap:13px}
 .logo{width:52px;height:52px;border-radius:15px;background:#fff;border:1px solid var(--line);display:grid;place-items:center;flex:none;overflow:hidden;box-shadow:0 4px 12px -6px rgba(13,26,45,.18);position:relative}
-.logo img{width:78%;height:78%;object-fit:contain;display:block;opacity:0;transition:opacity .4s,transform .4s var(--ease)}
+.logo img{width:78%;height:78%;object-fit:contain;display:block;transition:transform .4s var(--ease)}
 .logo.wide{width:124px;padding:0 11px}
 .logo.wide img{width:100%;height:32px}
 .logo.dark{background:linear-gradient(135deg,#0a2a5c,#0b4fb0);border-color:transparent;box-shadow:0 6px 16px -8px rgba(10,42,92,.6)}
 .card:hover .logo img{transform:scale(1.06)}
-.logo img.in{opacity:1}
 .logo .ini{font-weight:800;color:var(--b1);font-size:16px;letter-spacing:-.02em}
 .logo.ld:after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 30%,rgba(255,255,255,.8) 50%,transparent 70%),#eef3fa;background-size:220% 100%;animation:sk 1.2s infinite}
 .ch .nm{flex:1;min-width:0}
@@ -354,7 +353,7 @@ const since = t => { if (!t) return ''; const m = (Date.now() - t) / 6e4; return
    (made for a dark website header) gets a navy tile, and a wordmark gets a wider tile. */
 function logoHtml(c) {
   const p = S.lg[c.domain], inf = S.info[c.domain] || {};
-  if (p && p.src) return '<div class="logo' + (p.wide ? ' wide' : '') + (p.dark ? ' dark' : '') + '" data-logo><img class="in" alt="" src="' + p.src + '"></div>';
+  if (p && p.src) return '<div class="logo' + (p.wide ? ' wide' : '') + (p.dark ? ' dark' : '') + '" data-logo><img alt="" src="' + p.src + '"></div>';
   if (p === null || (!inf.logo && !inf.icon)) return '<div class="logo" data-logo><span class="ini">' + esc(initials(c.name)) + '</span></div>';
   return '<div class="logo ld" data-logo></div>';
 }
@@ -514,8 +513,8 @@ function card(c, idx) {
     (c.connected ? '<button data-x="recheck">' + I.refresh + 'Re-check access</button><button data-x="reconnect">' + I.key + 'Replace Location ID / token</button>' : '') +
     (c.site ? '<button data-x="snippet">' + I.code + 'Get the snippet</button>' : '') +
     '<button data-x="logo">' + I.img + 'Find the logo again</button><button data-x="logourl">' + I.edit + 'Use my own logo</button><button data-x="rename">' + I.edit + 'Rename</button><hr><button data-x="remove" class="bad">' + I.trash + 'Remove client</button></div></div>';
-  return '<div class="card' + (c.site ? ' site' : '') + '" data-d="' + esc(c.domain) + '" style="animation-delay:' + Math.min(idx, 14) * 45 + 'ms"><div class="ch">' + logoHtml(c) + '<div class="nm"><h3 title="' + esc(c.name) + '">' + esc(c.name) + '</h3><div class="dm">' + I.globe + '<a href="https://' + esc(c.domain) + '" target="_blank" rel="noopener">' + esc(c.domain) + '</a></div></div>' + tag + menu + '</div>' +
-    chips + snip +
+  return '<div class="card' + (c.site ? ' site' : '') + '" data-d="' + esc(c.domain) + '" style="animation-delay:' + Math.min(idx, 14) * 45 + 'ms"><div class="ch">' + logoHtml(c) + '<div class="nm"><h3 title="' + esc(c.name) + '">' + esc(c.name) + '</h3><div class="dm">' + I.globe + '<a href="https://' + esc(c.domain) + '" target="_blank" rel="noopener">' + esc(c.domain) + '</a></div></div>' + menu + '</div>' +
+    '<div class="row" style="gap:8px;margin-top:-4px">' + tag + '</div>' + chips + snip +
     '<div class="row"><button class="tog' + (c.bot ? ' on' : '') + '" data-x="bot"><i></i>Assistant ' + (c.bot ? 'on' : 'off') + '</button>' + (c.bot ? '<button class="link" data-x="chats">' + I.chat + 'Read chats</button>' : '') + '</div>' +
     '<div class="users">' + (us.length ? us.map(u => '<div class="user' + (u.disabled ? ' off' : '') + '" data-u="' + esc(u.id) + '"><div class="av">' + esc(initials(u.name || u.email)) + '</div><div class="who"><b>' + esc(u.name || u.email) + (u.disabled ? ' · off' : '') + '</b><small>' + esc(u.email) + ' · ' + ago(u.lastSeen || u.lastLogin) + '</small></div>' +
       '<button class="btn sm" data-ux="as" title="Open the dashboard as this client">' + I.eye + 'Open</button><div class="menu"><button class="btn sm ghost" data-more>' + I.dots + '</button><div class="dd"><button data-ux="edit">' + I.edit + 'Edit login</button><button data-ux="toggle">' + I.power + (u.disabled ? 'Turn back on' : 'Turn off') + '</button><button data-ux="signout">' + I.out + 'Sign out everywhere</button><hr><button data-ux="del" class="bad">' + I.trash + 'Delete login</button></div></div></div>').join('') : '<div class="empty">No login yet.</div>') + '</div>' +
