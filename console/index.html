@@ -975,7 +975,7 @@ function aiForm(c) {
   const send = async (url, key) => {
     const er = $('.err', tf); er.hidden = true;
     try {
-      const j = await call('elSetTracker', { url, key });
+      const j = await call('elSetTracker', { url, tkey: key });   /* not "key": that field carries the team key */
       if (j && j.error) throw new Error(j.error);
       S.ai = Object.assign({}, S.ai || {}, { connected: !!j.connected, domains: j.domains || [], error: '' });
       m.close(); draw(); toast(j.connected ? 'AI Visibility Tracker connected · follows ' + (j.domains || []).length + ' websites' : 'Tracker disconnected'); aiLoad();
