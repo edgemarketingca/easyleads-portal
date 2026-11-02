@@ -1250,7 +1250,7 @@ function header(me, c){
   return '<header class="top"><div class="top-in">' +
     '<div class="brandmark"><img src="img/easyleads-logo.png" alt="' + esc(BRAND) + '"></div><div class="sep hide-sm"></div>' +
     (me ? '<div class="client"><img alt="" src="https://www.google.com/s2/favicons?domain=' + encodeURIComponent(c.domain || '') + '&sz=64" onerror="this.style.visibility=\'hidden\'">' +
-      (me.clients.length > 1 ? '<select data-client aria-label="Business">' + me.clients.map(x => '<option value="' + esc(x.domain) + '"' + (x.domain === S.domain ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('') + '</select>' : '<b>' + esc(c.name || '') + '</b>') + '</div>' +
+      (me.clients.length > 1 ? '<button type="button" class="biz-btn" data-client aria-haspopup="listbox" aria-label="Switch business"><b>' + esc(c.name || '') + '</b><svg class="biz-chev" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg></button>' : '<b>' + esc(c.name || '') + '</b>') + '</div>' +
       (S.preview ? '<span class="pill warn hide-sm">' + ic('eye', 12) + ' Preview as client</span>' : '') : '<div class="sk" style="width:180px;height:38px;border-radius:14px"></div>') +
     '<div class="grow"></div>' +
     (me ? '<div class="seg hide-sm" data-period>' + PERIODS.map(p => '<button type="button" data-p="' + p[0] + '"' + (p[0] === S.period ? ' class="on"' : '') + '>' + p[1] + '</button>').join('') + '</div>' +
@@ -1293,7 +1293,7 @@ const rangeText = () => { const r = range(); return new Date(r.s).toLocaleDateSt
 function wireTop(){
   const q = s => app.querySelector(s);
   app.querySelectorAll('[data-p]').forEach(b => b.addEventListener('click', () => { S.period = b.dataset.p; ls.set('el_period', S.period); renderApp(); }));
-  const cs = q('[data-client]'); if (cs) cs.addEventListener('change', () => { S.domain = cs.value; S.ui = {}; ls.set('el_domain', S.domain); renderApp(); });
+  const cs = q('[data-client]'); if (cs) cs.addEventListener('click', e => { e.stopPropagation(); bizMenu(cs); });
   app.querySelectorAll('[data-dash]').forEach(b => b.addEventListener('click', () => { S.dash = Number(b.dataset.dash); renderApp(); }));
   const nd = q('[data-newdash]'); if (nd) nd.addEventListener('click', () => {
     const name = prompt('Name the new dashboard:', 'My dashboard'); if (!name || !name.trim()) return;
@@ -1611,6 +1611,52 @@ function meMenu(){
   m.querySelector('[data-out]').addEventListener('click', () => { closePops(); if (S.preview){ window.close(); signOut(); } else signOut(); });
   const rs = m.querySelector('[data-reset]'); if (rs) rs.addEventListener('click', () => { if (!confirm('Put the default dashboards back? Your own dashboards will be removed.')) return; S.layout = {v: LAYOUT_V, dashes: DEFAULT_DASHES()}; S.dash = 0; S.ui = {}; saveLayout(); renderApp(); });
 }
+/* Business switcher: a smooth popover in place of the plain dropdown. */
+function bizMenu(btn){
+  const open = document.querySelector('[data-pop="biz"]');
+  closePops(); if (open) return;
+  const list = (S.me.clients || []).slice();
+  const m = document.createElement('div'); m.className = 'biz-pop'; m.dataset.pop = 'biz'; m.setAttribute('role', 'listbox'); m.setAttribute('aria-label', 'Switch business');
+  const many = list.length > 6;
+  m.innerHTML = '<div class="biz-h">Switch business<span>' + list.length + '</span></div>' + (many ? '<div class="biz-q">' + ic('search', 15) + '<input type="text" placeholder="Find a business" aria-label="Find a business"></div>' : '') + '<div class="biz-list"></div>';
+  const box = m.querySelector('.biz-list');
+  let shown = list, act = Math.max(0, list.findIndex(x => x.domain === S.domain));
+  const draw = () => {
+    box.innerHTML = shown.length ? shown.map((x, i) => '<button type="button" role="option" class="biz-it' + (x.domain === S.domain ? ' cur' : '') + (i === act ? ' act' : '') + '" data-d="' + esc(x.domain) + '" aria-selected="' + (x.domain === S.domain) + '"><img alt="" src="https://www.google.com/s2/favicons?domain=' + encodeURIComponent(x.domain || '') + '&sz=64" onerror="this.style.visibility=\'hidden\'"><span class="biz-tx"><b>' + esc(x.name) + '</b><small>' + esc(x.domain) + '</small></span>' + (x.domain === S.domain ? '<span class="biz-ck">' + ic('check', 16) + '</span>' : '') + '</button>').join('') : '<div class="biz-none">No business matches that.</div>';
+  };
+  const pick = d => { closePops(); if (!d || d === S.domain) return; S.domain = d; S.ui = {}; ls.set('el_domain', S.domain); renderApp(); };
+  draw();
+  btn.parentNode.appendChild(m);
+  requestAnimationFrame(() => requestAnimationFrame(() => m.classList.add('in')));
+  const cur = box.querySelector('.act'); if (cur) cur.scrollIntoView({block: 'nearest'});
+  m.addEventListener('click', e => { e.stopPropagation(); const it = e.target.closest('.biz-it'); if (it) pick(it.dataset.d); });
+  m.addEventListener('mousemove', e => { const it = e.target.closest('.biz-it'); if (!it) return; const i = [...box.querySelectorAll('.biz-it')].indexOf(it); if (i !== act){ act = i; box.querySelectorAll('.biz-it').forEach((b, k) => b.classList.toggle('act', k === act)); } });
+  const inp = m.querySelector('input');
+  if (inp){ inp.addEventListener('input', () => { const t = inp.value.trim().toLowerCase(); shown = list.filter(x => ((x.name || '') + ' ' + (x.domain || '')).toLowerCase().indexOf(t) > -1); act = 0; draw(); }); setTimeout(() => inp.focus(), 40); }
+  const key = e => {
+    if (!document.body.contains(m)) return document.removeEventListener('keydown', key, true);
+    if (e.key === 'Escape'){ e.preventDefault(); closePops(); btn.focus(); }
+    else if (e.key === 'ArrowDown' || e.key === 'ArrowUp'){ e.preventDefault(); if (!shown.length) return; act = (act + (e.key === 'ArrowDown' ? 1 : -1) + shown.length) % shown.length; draw(); const a = box.querySelector('.act'); if (a) a.scrollIntoView({block: 'nearest'}); }
+    else if (e.key === 'Enter'){ e.preventDefault(); if (shown[act]) pick(shown[act].domain); }
+  };
+  document.addEventListener('keydown', key, true);
+}
+(function(){ if (document.getElementById('biz-css')) return; const st = document.createElement('style'); st.id = 'biz-css';
+  st.textContent = '.client{position:relative;overflow:visible}' +
+    '.biz-btn{display:inline-flex;align-items:center;gap:6px;border:0;background:none;padding:5px 7px 5px 6px;margin:-5px -4px -5px -2px;border-radius:10px;font:inherit;color:inherit;cursor:pointer;transition:background .15s}.biz-btn:hover{background:rgba(11,12,15,.05)}.biz-btn:focus-visible{outline:0;box-shadow:0 0 0 3px rgba(0,134,255,.18)}' +
+    '.biz-btn b{font-weight:650;font-size:15px;letter-spacing:-.01em;white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis}' +
+    '.biz-chev{color:#8a92a3;flex:none;transition:transform .28s cubic-bezier(.2,.8,.2,1),color .15s}.biz-btn:hover .biz-chev{color:#30353f}.client:has(.biz-pop) .biz-chev{transform:rotate(180deg);color:#0086ff}' +
+    '.biz-pop{position:absolute;left:0;top:calc(100% + 10px);z-index:60;width:310px;max-width:calc(100vw - 24px);background:rgba(255,255,255,.97);-webkit-backdrop-filter:saturate(1.6) blur(14px);backdrop-filter:saturate(1.6) blur(14px);border:1px solid rgba(11,12,15,.08);border-radius:16px;box-shadow:0 30px 60px -22px rgba(11,12,15,.34),0 6px 14px -6px rgba(11,12,15,.08);padding:6px;opacity:0;transform:translateY(-6px) scale(.98);transform-origin:top left;transition:opacity .18s ease,transform .24s cubic-bezier(.2,.8,.2,1)}.biz-pop.in{opacity:1;transform:none}' +
+    '.biz-h{display:flex;align-items:center;justify-content:space-between;padding:8px 10px 7px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#8a92a3}.biz-h span{background:#f1f2f5;color:#5b6273;border-radius:6px;padding:1px 7px;letter-spacing:0}' +
+    '.biz-q{position:relative;margin:2px 4px 6px}.biz-q svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#9aa2b1}.biz-q input{width:100%;box-sizing:border-box;height:36px;border:1px solid #e8eaef;border-radius:10px;padding:0 10px 0 32px;font:inherit;font-size:13.5px;background:#f8f9fb;transition:border-color .15s,box-shadow .15s,background .15s}.biz-q input:focus{outline:0;border-color:#0086ff;background:#fff;box-shadow:0 0 0 3px rgba(0,134,255,.12)}' +
+    '.biz-list{max-height:min(360px,60vh);overflow:auto;display:grid;gap:2px;overscroll-behavior:contain}' +
+    '.biz-it{display:flex;align-items:center;gap:11px;width:100%;border:0;background:none;text-align:left;padding:8px 10px;border-radius:11px;cursor:pointer;font:inherit;color:inherit;transition:background .12s}' +
+    '.biz-it.act{background:#f3f5f9}.biz-it.cur{background:#eef6ff}.biz-it.cur.act{background:#e4f0ff}' +
+    '.biz-it img{width:32px;height:32px;box-sizing:border-box;padding:6px;border-radius:10px;background:#fff;box-shadow:0 0 0 1px rgba(11,12,15,.07),0 2px 4px -2px rgba(11,12,15,.12);flex:none}' +
+    '.biz-tx{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.3}.biz-tx b{font-size:14px;font-weight:600;color:#0b0c0f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.biz-tx small{font-size:12px;color:#8a92a3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+    '.biz-ck{color:#0086ff;display:grid;place-items:center;flex:none}.biz-none{padding:16px;text-align:center;color:#8a92a3;font-size:13px}';
+  document.head.appendChild(st);
+})();
 function closePops(){ document.querySelectorAll('[data-pop]').forEach(x => x.remove()); }
 document.addEventListener('click', closePops);
 document.addEventListener('keydown', e => {
