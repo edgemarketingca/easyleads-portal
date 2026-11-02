@@ -447,12 +447,15 @@ function marksHtml(list, id){
     '<button type="button" class="mk-add" data-mk="' + esc(id) + '" title="Mark this lead" aria-label="Mark this lead">' + ((list || []).some(m => m.name === mine) ? ic('edit', 12) : ic('plus', 12) + '<span>Mark</span>') + '</button>';
 }
 function markMenu(btn, r, M, onDone){
+  const was = btn.parentNode.querySelector('.mk-menu');
   closePops();
+  if (was) return;                     /* a second click closes it */
   const mine = myMarkName(), cur = ((M[r.id] || []).find(m => m.name === mine) || {}).s;
   const m = document.createElement('div'); m.className = 'mk-menu'; m.dataset.pop = 1;
   m.innerHTML = '<div class="mk-h">Mark as</div>' + Object.keys(MARKS).map(k => '<button type="button" data-s="' + k + '" style="--c:' + MARKS[k][1] + '"' + (cur === k ? ' class="on"' : '') + '><i>' + ic(MARKS[k][2], 12) + '</i>' + MARKS[k][0] + (cur === k ? '<small>yours</small>' : '') + '</button>').join('') +
     (cur ? '<button type="button" data-s="none" class="clr">Remove my mark</button>' : '') + '<div class="mk-f">Others’ marks stay as they are.</div>';
   btn.parentNode.appendChild(m);
+  placeMenu(m, btn);
   m.addEventListener('click', e => e.stopPropagation());
   m.querySelectorAll('[data-s]').forEach(b => b.addEventListener('click', async () => {
     const s = b.dataset.s; closePops();
@@ -463,6 +466,15 @@ function markMenu(btn, r, M, onDone){
     try{ const j = await api('portalMark', {session: S.session, domain: S.domain, id: r.id, s}); if (j.error) throw new Error(j.error); M[r.id] = j.marks || []; onDone(); }
     catch(e){ M[r.id] = before; onDone(); toast('Couldn’t save that mark: ' + e.message); }
   }));
+}
+/* The menu opens upward; on the first leads of the list, where there is no room above, it opens
+   downward instead, and the list scrolls a little if it would be cut off at the bottom. */
+function placeMenu(m, btn){
+  const sc = btn.closest('.ib-list'), top = Math.max(sc ? sc.getBoundingClientRect().top : 0, 72) + 4;
+  if (m.getBoundingClientRect().top >= top) return;
+  m.classList.add('down');
+  const bot = sc ? sc.getBoundingClientRect().bottom : innerHeight, over = m.getBoundingClientRect().bottom - bot + 10;
+  if (over > 0) (sc || window).scrollBy({top: over, behavior: 'smooth'});
 }
 /* ----- the same person across every submission, past and future -----
    A person is their email, else their phone number (last ten digits), else
@@ -500,7 +512,14 @@ function openPerson(list){
     x => openSubmission(x), 'No submissions.', 25);
 }
 (function(){ if (document.getElementById('pp-css')) return; const st = document.createElement('style'); st.id = 'pp-css';
-  st.textContent = '.pp-badge{display:inline-flex;align-items:center;gap:5px;margin-left:8px;padding:2px 9px 2px 7px;border-radius:99px;background:#eef4ff;color:#1d5fd0;font-size:11.5px;font-weight:700;cursor:pointer;vertical-align:middle;transition:background .2s,transform .2s}.pp-badge:hover{background:#dbe8ff;transform:translateY(-1px)}.pp-badge svg{width:12px;height:12px}' +
+  st.textContent = '.mk-menu.down{bottom:auto;top:30px}' +
+    '.tm-btn{width:auto;min-width:40px;padding:0 9px}.tm-btn.live{border-color:#bfe8d4;background:#f2fbf6}.tm-btn [data-teamav]{display:flex;align-items:center;gap:4px}.tm-btn em{font-style:normal;font-size:11.5px;font-weight:700;color:var(--ink-2)}' +
+    '.tm-stack{display:flex}.tm-stack i{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;color:#fff;font:700 10px var(--ui);font-style:normal;border:2px solid #fff;margin-left:-7px;position:relative}.tm-stack i:first-child{margin-left:0}.tm-btn.live .tm-stack i:last-child:after{content:"";position:absolute;right:-3px;bottom:-2px;width:8px;height:8px;border-radius:50%;background:#12a26b;border:2px solid #fff}' +
+    '.tm-pop{width:min(380px,calc(100vw - 24px))}.tm-live{display:inline-flex;align-items:center;gap:6px;font:500 12px var(--ui);color:var(--ink-3)}.tm-live i{width:7px;height:7px;border-radius:50%;background:#12a26b}' +
+    '.tm-ppl{display:flex;flex-direction:column;gap:2px;padding:0 4px 6px;max-height:210px;overflow:auto}.tm-p{display:flex;align-items:center;gap:10px;padding:7px 6px;border-radius:10px}.tm-p .av{position:relative;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:11.5px;flex:none}' +
+    '.tm-p .av i{position:absolute;right:-1px;bottom:-1px;width:10px;height:10px;border-radius:50%;background:#cbd2dc;border:2px solid #fff}.tm-p.on .av i{background:#12a26b}.tm-p .t{min-width:0;line-height:1.3}.tm-p .t b{display:block;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tm-p .t b small{font-weight:500;color:var(--ink-3);font-size:11.5px}.tm-p .t>small{color:var(--ink-3);font-size:12px}.tm-p.on .t>small{color:#0f8a5c;font-weight:600}' +
+    '.tm-h{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);padding:10px 10px 6px;border-top:1px solid var(--line-2)}.tm-acts{max-height:300px}.tm-a .t small span{color:var(--ink);font-weight:600}' +
+    '.pp-badge{display:inline-flex;align-items:center;gap:5px;margin-left:8px;padding:2px 9px 2px 7px;border-radius:99px;background:#eef4ff;color:#1d5fd0;font-size:11.5px;font-weight:700;cursor:pointer;vertical-align:middle;transition:background .2s,transform .2s}.pp-badge:hover{background:#dbe8ff;transform:translateY(-1px)}.pp-badge svg{width:12px;height:12px}' +
     '.pp-h{display:flex;align-items:center;gap:7px;margin:4px 0 8px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}.pp-box{margin:6px 0 14px;padding:12px 14px;border-radius:14px;background:#f5f8ff;border:1px solid #e2ebfa}.pp-box b{color:var(--ink)}.pp-box button{margin-top:8px}' +
     '.ib-list{max-height:none}';
   document.head.appendChild(st); })();
@@ -591,6 +610,16 @@ function drawInbox(h, D, it){
   paint();
   const dom = S.domain;
   marksFor(dom).then(m => { if (!h.isConnected || S.domain !== dom) return; M = m; paint(); }).catch(() => {});
+  /* Marks made by anyone else on the team show up here within half a minute. */
+  const onMk = e => {
+    if (!h.isConnected){ document.removeEventListener('el-marks', onMk); return; }
+    if (e.detail.domain !== dom || JSON.stringify(e.detail.marks) === JSON.stringify(M)) return;
+    M = IB_M = e.detail.marks;
+    if (document.querySelector('.mk-menu')) return;            /* not while someone is choosing a mark */
+    if (st.f.mark) { paint(); return; }
+    h.querySelectorAll('[data-mki]').forEach(box => { const b = box.querySelector('[data-mk]'); if (b) box.innerHTML = marksHtml(M[b.dataset.mk], b.dataset.mk); });
+  };
+  document.addEventListener('el-marks', onMk);
   /* Everyone's full history, then the badges and how many had been in touch before. */
   formsHistory().then(all => {
     if (!h.isConnected || S.domain !== dom) return;
@@ -1057,6 +1086,7 @@ function header(me, c){
       (S.preview ? '<span class="pill warn hide-sm">' + ic('eye', 12) + ' Preview as client</span>' : '') : '<div class="sk" style="width:180px;height:38px;border-radius:14px"></div>') +
     '<div class="grow"></div>' +
     (me ? '<div class="seg hide-sm" data-period>' + PERIODS.map(p => '<button type="button" data-p="' + p[0] + '"' + (p[0] === S.period ? ' class="on"' : '') + '>' + p[1] + '</button>').join('') + '</div>' +
+      '<div class="anchor"><button class="iconbtn tm-btn" type="button" data-team title="Your team: who is here and what they did" aria-label="Your team"><span data-teamav>' + ic('users') + '</span></button></div>' +
       '<div class="anchor"><button class="iconbtn" type="button" data-bell title="Form submissions" aria-label="Form submissions">' + ic('bell') + '<span class="spin" data-bells></span><span class="badge" data-bellc hidden></span></button></div>' +
       '<div class="anchor"><button class="iconbtn" type="button" data-phone title="Calls" aria-label="Calls">' + ic('phone') + '<span class="spin" data-phones></span><span class="badge" data-phonec hidden></span></button></div>' +
       '<div class="anchor"><button class="avatar" type="button" data-me aria-label="Account">' + esc(initials(me.user.name || me.user.email)) + '</button></div>'
@@ -1087,6 +1117,7 @@ function renderApp(){
     '<div class="grid" data-grid></div></main>';
   wireTop(); drawGrid(dash);
   bellCheck();
+  teamStart();
   botMount();
 }
 const rangeText = () => { const r = range(); return new Date(r.s).toLocaleDateString('en-CA', {month: 'short', day: 'numeric', year: 'numeric'}) + ' – ' + new Date(r.e).toLocaleDateString('en-CA', {month: 'short', day: 'numeric', year: 'numeric'}); };
@@ -1115,6 +1146,7 @@ function wireTop(){
   const rn = q('[data-rename]'); if (rn) rn.addEventListener('click', () => { const n = prompt('Dashboard name:', dash.name); if (n && n.trim()){ dash.name = n.trim().slice(0, 40); saveLayout(); renderApp(); } });
   const dd = q('[data-deldash]'); if (dd) dd.addEventListener('click', () => { if (!confirm('Delete the “' + dash.name + '” dashboard?')) return; L.dashes.splice(L.dashes.indexOf(dash), 1); S.dash = 0; saveLayout(); renderApp(); });
   q('[data-bell]').addEventListener('click', e => { e.stopPropagation(); feedPop('forms'); });
+  q('[data-team]').addEventListener('click', e => { e.stopPropagation(); teamPop(); });
   q('[data-phone]').addEventListener('click', e => { e.stopPropagation(); feedPop('calls'); });
   q('[data-me]').addEventListener('click', e => { e.stopPropagation(); meMenu(); });
 }
@@ -1333,6 +1365,71 @@ async function feedPop(k){
     ls.set(seenKey(k), Date.now()); ls.set(readKey(k), []); closePops();
     const b = app.querySelector(k === 'forms' ? '[data-bellc]' : '[data-phonec]'); if (b){ b.hidden = true; b.parentNode.classList.remove('ring'); }
   });
+}
+/* ---------- the team: who is on this dashboard, and who marked what ----------
+   Every open dashboard checks in every 30 seconds (less often in a background tab). The answer
+   carries everyone's latest marks, so a mark made by one person reaches the others' inboxes, and
+   the people button shows who is here now. */
+const TEAM = {data: null, dom: '', iv: 0};
+const ago = t => { const d = Date.now() - t; return d < 60000 ? 'just now' : d < 3600000 ? Math.round(d / 60000) + ' min ago' : d < 864e5 ? Math.round(d / 3600000) + ' h ago' : relDay(t); };
+function teamFetch(){
+  const dom = S.domain;
+  if (!S.me || !dom || !S.session) return Promise.resolve();
+  return api('portalTeam', {session: S.session, domain: dom}).then(j => {
+    if (!j || j.error || !j.people || S.domain !== dom) return;
+    TEAM.data = j; TEAM.dom = dom;
+    S.marks = S.marks || {}; S.marks[dom] = {at: Date.now(), p: Promise.resolve(j.marks || {})};
+    document.dispatchEvent(new CustomEvent('el-marks', {detail: {domain: dom, marks: j.marks || {}}}));
+    teamPaint();
+  }).catch(() => {});
+}
+function teamStart(){
+  if (TEAM.dom !== S.domain) TEAM.data = null;
+  teamPaint();
+  if (!TEAM.iv){
+    let last = 0;
+    TEAM.iv = setInterval(() => { if (Date.now() - last > (document.hidden ? 120000 : 29000)){ last = Date.now(); teamFetch(); } }, 5000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden){ last = Date.now(); teamFetch(); } });
+    last = Date.now();
+  }
+  teamFetch();
+}
+function teamPaint(){
+  const el = app && app.querySelector('[data-teamav]'); if (!el) return;
+  const d = TEAM.dom === S.domain && TEAM.data, on = d ? d.people.filter(p => p.on && !p.me) : [];
+  el.parentNode.classList.toggle('live', on.length > 0);
+  el.innerHTML = on.length ? '<span class="tm-stack">' + on.slice(0, 2).map(p => '<i style="background:' + hue(p.name || p.email) + '">' + esc(p.by) + '</i>').join('') + '</span>' + (on.length > 2 ? '<em>+' + (on.length - 2) + '</em>' : '') : ic('users');
+  el.parentNode.title = on.length ? on.map(p => p.name || p.email).join(', ') + (on.length === 1 ? ' is' : ' are') + ' on the dashboard now' : 'Your team: who is here and what they did';
+  const pop = document.querySelector('[data-pop="team"]'); if (pop && pop.redraw) pop.redraw();
+}
+function teamPop(){
+  const open = document.querySelector('[data-pop="team"]');
+  closePops();
+  if (open) return;
+  const pop = document.createElement('div'); pop.className = 'pop tm-pop'; pop.dataset.pop = 'team';
+  app.querySelector('[data-team]').parentNode.appendChild(pop);
+  pop.addEventListener('click', e => e.stopPropagation());
+  let byId = null;
+  formsHistory().then(rows => { byId = {}; rows.forEach(r => { if (r.id) byId[r.id] = r; }); if (pop.isConnected) pop.redraw(); }).catch(() => { byId = {}; });
+  pop.redraw = () => {
+    const d = TEAM.dom === S.domain && TEAM.data;
+    if (!d){ pop.innerHTML = '<h4>Your team</h4><div class="list">' + SK.list(3) + '</div>'; return; }
+    const ppl = d.people.slice().sort((a, b) => (b.on - a.on) || (b.me - a.me) || (b.seen - a.seen));
+    const nOn = ppl.filter(p => p.on).length;
+    const acts = d.acts.slice(0, 30);
+    pop.innerHTML = '<h4>Your team<span class="tm-live"><i></i>' + nOn + ' here now</span></h4>' +
+      '<div class="tm-ppl">' + ppl.map(p => '<div class="tm-p' + (p.on ? ' on' : '') + '"><div class="av" style="background:' + hue(p.name || p.email) + '">' + esc(p.by) + '<i></i></div><div class="t"><b>' + esc(p.name || p.email || 'Teammate') + (p.me ? ' <small>you</small>' : '') + '</b><small>' +
+        (p.on ? 'Active now' : p.seen ? 'Last active ' + esc(ago(p.seen)) : 'Hasn’t signed in yet') + '</small></div></div>').join('') + '</div>' +
+      '<div class="tm-h">Recent activity</div><div class="list tm-acts">' + (acts.length ? acts.map((a, i) => {
+        const r = byId && byId[a.id], lead = r ? (r.name || r.email || r.phone || 'a lead') : byId ? 'a lead' : '…', M_ = MARKS[a.s];
+        return '<div class="row tm-a" data-a="' + i + '"><div class="av" style="background:' + (M_ ? M_[1] : '#94a3b8') + '">' + ic(M_ ? M_[2] : 'x', 14) + '</div><div class="t"><b>' + esc(a.name || 'Someone') + '</b><small>' +
+          (M_ ? 'marked <span>' + esc(lead) + '</span> as ' + M_[0] : 'removed their mark on <span>' + esc(lead) + '</span>') + '</small></div><div class="r">' + esc(ago(a.t)) + '</div></div>';
+      }).join('') : '<div class="empty" style="margin:8px">No marks yet. When anyone marks a lead Done, Pending or Spam, it shows here.</div>') + '</div>' +
+      '<div class="pfoot">Updates every 30 seconds</div>';
+    pop.querySelectorAll('[data-a]').forEach(el => el.addEventListener('click', () => { const r = byId && byId[acts[Number(el.dataset.a)].id]; if (r){ closePops(); openSubmission(r); } }));
+  };
+  pop.redraw();
+  teamFetch();
 }
 function meMenu(){
   const open = document.querySelector('[data-pop="me"]');
