@@ -950,7 +950,7 @@ const aiTracked = c => !!(S.ai && S.ai.connected && (S.ai.domains || []).indexOf
 function aiState(c) {
   const parts = [];
   if (gaOf(c)) parts.push('visits from GA');
-  if (c.site) parts.push('leads');
+  if (c.site || c.connected) parts.push('leads');
   if (aiTracked(c)) parts.push('AI Overview checks');
   return { on: !!(gaOf(c) || aiTracked(c)), txt: parts.length ? parts.join(' · ') : 'connect GA or the Tracker' };
 }
@@ -959,7 +959,7 @@ function aiForm(c) {
   const row = (ok, title, sub, btn) => '<div class="ai-src' + (ok ? ' ok' : '') + '"><i>' + (ok ? '✓' : '') + '</i><div><b>' + title + '</b><small>' + sub + '</small></div>' + (btn || '') + '</div>';
   const m = modal('<h2>AI visibility · ' + esc(c.name) + '</h2><p class="s">Shows how ChatGPT, Perplexity, Gemini, Copilot and Claude send people to the business, and whether Google’s AI Overviews mention it, in an <b>AI visibility</b> tab on their dashboard.</p>' +
     row(ga, 'Visits from AI assistants', ga ? 'From Google Analytics (property ' + esc(gaOf(c)) + ').' : 'Needs Google Analytics on this client.', ga ? '' : '<button type="button" class="btn sm" data-ga>Connect GA</button>') +
-    row(!!c.site, 'Leads from AI assistants', c.site ? 'From the website snippet: leads arriving from an AI assistant are recognised automatically.' : 'Needs the website snippet on this client.') +
+    row(!!(c.site || c.connected), 'Leads from AI assistants', c.connected ? 'From Easyleads: form leads that arrived from an AI assistant are recognised from the page\u2019s tracking tags and referrer.' : c.site ? 'From the website snippet: leads arriving from an AI assistant are recognised automatically.' : 'Needs the website snippet or an Easyleads account on this client.') +
     row(tr, 'Google AI Overview checks', tr ? 'From the AI Visibility Tracker: each tracked search, checked for an AI Overview that cites or names the business.'
       : T.connected ? esc(c.domain) + ' isn’t followed by the Tracker yet. Add it as an SEO client with keywords in the EDGE SEO tool; the Tracker picks it up from there.'
       : 'The AI Visibility Tracker isn’t connected to Easyleads yet. Connect it once below and it works for every client it follows.') +
