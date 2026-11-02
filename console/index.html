@@ -284,6 +284,16 @@ textarea.in{height:auto;padding:10px 13px}
 .garow svg{width:15px;height:15px;color:#e8710a;flex:none}
 .garow b{color:var(--ink);font-weight:600}
 .garow span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.garow.sc svg{color:#1a73e8}
+.garow.ai svg{color:#7c3aed}
+.garow .link{margin-left:auto}
+button.garow.ai:not(.add){cursor:pointer}
+.ai-src{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;margin-bottom:8px}
+.ai-src>i{width:22px;height:22px;border-radius:50%;border:2px solid #d5d9e1;display:grid;place-items:center;font-style:normal;font-size:12px;font-weight:700;color:#fff;flex:none}
+.ai-src.ok>i{background:var(--ok);border-color:var(--ok)}
+.ai-src>div{flex:1;min-width:0;line-height:1.35}
+.ai-src b{display:block;font-size:13.5px}
+.ai-src small{color:var(--mute);font-size:12.5px}
 .garow.add{border-style:dashed;border-color:#d5d9e1;cursor:pointer;font-weight:550;transition:border-color .2s,color .2s,background .2s}
 .garow.add:hover{border-color:#e8710a;color:var(--ink);background:#fff8f1}
 .garow.add svg:last-child{color:var(--soft)}
@@ -552,11 +562,11 @@ function signIn() {
 
 /* ---------- console ---------- */
 async function fetchAll() {
-  const [a, b, g] = await Promise.all([call('portalAdminList'), call('elClients'), call('elGaList').catch(() => null)]);
-  return { a, b, g };
+  const [a, b, g, sc] = await Promise.all([call('portalAdminList'), call('elClients'), call('elGaList').catch(() => null), call('elGscList').catch(() => null)]);
+  return { a, b, g, sc };
 }
 function apply(data) {
-  S.users = data.a.users || []; S.scopes = data.a.scopes; if (data.g && data.g.ok) S.ga = data.g;
+  S.users = data.a.users || []; S.scopes = data.a.scopes; if (data.g && data.g.ok) S.ga = data.g; if (data.sc && data.sc.ok) S.gsc = data.sc; aiLoad();
   const extra = {}; (data.b.clients || []).forEach(c => extra[c.domain] = c);
   S.clients = (data.a.clients || []).map(c => Object.assign({}, c, extra[c.domain] || {}));
   S.info = {}; S.clients.forEach(c => S.info[c.domain] = { logo: c.logo, icon: c.icon, site: c.site, sk: c.sk });
@@ -629,7 +639,8 @@ function card(c, idx) {
   const menu = '<div class="menu"><button class="btn sm ghost icon" data-more aria-label="More">' + I.dots + '</button><div class="dd">' +
     (c.connected ? '<button data-x="recheck">' + I.refresh + 'Re-check access</button><button data-x="reconnect">' + I.key + 'Replace Location ID / token</button>' : '') +
     (c.site ? '<button data-x="snippet">' + I.code + 'Get the snippet</button><button data-x="import">' + I.upload + 'Import past form submissions</button>' : '') +
-    '<button data-x="ga">' + I.chart + (gaOf(c) ? 'Change Google Analytics' : 'Connect Google Analytics') + '</button><hr>' +
+    '<button data-x="ga">' + I.chart + (gaOf(c) ? 'Change Google Analytics' : 'Connect Google Analytics') + '</button>' +
+    '<button data-x="gsc">' + IX.search + (gscOf(c) ? 'Change Search Console' : 'Connect Search Console') + '</button><button data-x="ai">' + IX.spark + 'AI visibility</button><hr>' +
     '<button data-x="logo">' + I.img + 'Find the logo again</button><button data-x="logourl">' + I.edit + 'Use my own logo</button><button data-x="rename">' + I.edit + 'Rename</button><hr><button data-x="remove" class="bad">' + I.trash + 'Remove client</button></div></div>';
   return '<div class="card' + (c.site ? ' site' : '') + '" data-d="' + esc(c.domain) + '" style="animation-delay:' + Math.min(idx, 14) * 45 + 'ms">' +
     '<div class="plate"><div class="tl">' + tag + '</div>' + logoHtml(c) + menu + '</div>' +
@@ -637,6 +648,9 @@ function card(c, idx) {
     health + snip +
     (gaOf(c) ? '<div class="garow">' + I.chart + '<span><b>Google Analytics</b> · property ' + esc(gaOf(c)) + '</span><button class="link" data-x="ga">Change</button></div>'
       : c.site ? '<button class="garow add" data-x="ga">' + I.chart + '<span>Connect Google Analytics</span>' + I.plus + '</button>' : '') +
+    (gscOf(c) ? '<div class="garow sc">' + IX.search + '<span><b>Search Console</b> · ' + esc(gscOf(c).replace(/^sc-domain:/, '')) + '</span><button class="link" data-x="gsc">Change</button></div>'
+      : c.site || gaOf(c) ? '<button class="garow add sc" data-x="gsc">' + IX.search + '<span>Connect Google Search Console</span>' + I.plus + '</button>' : '') +
+    (c.site || gaOf(c) ? '<button class="garow ai' + (aiState(c).on ? '' : ' add') + '" data-x="ai">' + IX.spark + '<span><b>AI visibility</b> · ' + esc(aiState(c).txt) + '</span>' + (aiState(c).on ? '<span class="link">Details</span>' : I.plus) + '</button>' : '') +
     '<div class="sep"></div>' +
     '<div class="row"><button class="tog' + (c.bot ? ' on' : '') + '" data-x="bot"><i></i>Assistant ' + (c.bot ? 'on' : 'off') + '</button>' + (c.bot ? '<button class="link" data-x="chats">' + I.chat + 'Read chats</button>' : '') + '</div>' +
     '<div class="users">' + us.map(u => '<div class="user' + (u.disabled ? ' off' : '') + '" data-u="' + esc(u.id) + '"><div class="av">' + esc(initials(u.name || u.email)) + '</div><div class="who"><b>' + esc(u.name || u.email) + (u.disabled ? ' · off' : '') + '</b><small>' + esc(u.email) + ' · ' + ago(u.lastSeen || u.lastLogin) + '</small></div>' +
@@ -882,6 +896,95 @@ function userForm(u, domain) {
   };
 }
 
+/* ---------- Google Search Console ---------- */
+const IX = {
+  search: '<svg class="i" viewBox="0 0 24 24"><path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM21 21l-4.3-4.3"/></svg>',
+  spark: '<svg class="i" viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/></svg>'
+};
+const gscOf = c => (S.gsc && S.gsc.d && S.gsc.d[c.domain]) || c.gsc || '';
+const gscSteps = () => '<ul class="steps"><li><b>1</b><span>In <b>Google Search Console</b>, open the client’s property → <b>Settings</b> → <b>Users and permissions</b> → <b>Add user</b>.</span></li>' +
+  '<li><b>2</b><span>Add <b class="sel">' + esc(gaAccount()) + '</b> with <b>Restricted</b> permission (read-only is enough).</span></li>' +
+  '<li><b>3</b><span>Pick the property below. A <b>Domain</b> property (sc-domain:…) covers every version of the site and is the best choice when there is one.</span></li></ul>';
+function gscForm(c) {
+  const cur = gscOf(c), sites = (S.gsc && S.gsc.sites) || null, dom = c.domain.replace(/^www\./, '');
+  const mine = sites ? sites.filter(s => String(s.url).toLowerCase().replace(/^sc-domain:/, '').replace(/^https?:\/\/(www\.)?/, '').replace(/\/.*$/, '') === dom) : [];
+  const others = sites ? sites.filter(s => mine.indexOf(s) < 0) : [];
+  const opt = s => '<option value="' + esc(s.url) + '"' + (s.url === cur ? ' selected' : '') + '>' + esc(s.url) + '</option>';
+  const pick = sites && sites.length ? '<label class="f">Search Console property</label><select class="in" name="pick">' + (mine.length ? '<optgroup label="Matches ' + esc(dom) + '">' + mine.map(opt).join('') + '</optgroup>' : '<option value="">Not found yet: add the account first (steps above)</option>') +
+    (others.length ? '<optgroup label="Other properties this account can read">' + others.map(opt).join('') + '</optgroup>' : '') + '<option value="__type">Type it in…</option></select>' : '';
+  const scope = S.gsc && S.gsc.err === 'scope';
+  const m = modal('<h2>Google Search Console · ' + esc(c.name) + '</h2><p class="s">Adds clicks, impressions, positions and the searches people use to find them on Google to their dashboard, in a new <b>Google Search</b> tab.</p>' + gscSteps() +
+    (scope ? '<div class="note">Search Console still needs a one-time approval in the Easyleads backend (run <code>authorizeSearchConsole</code> in the Apps Script editor). Properties appear here after that.</div>' : '') +
+    '<form>' + pick + '<div data-type' + (pick && !(cur && sites && !sites.some(s => s.url === cur)) ? ' hidden' : '') + '><label class="f">Property</label><input class="in" name="gsc" placeholder="sc-domain:' + esc(dom) + '" value="' + esc(cur) + '"></div><div class="err" hidden></div>' +
+    '<div class="mf">' + (cur ? '<button type="button" class="btn bad" data-off style="margin-right:auto">Disconnect</button>' : '') + '<button type="button" class="btn" data-close>Cancel</button><button class="btn pri">' + (cur ? 'Save' : 'Connect Search Console') + '</button></div></form>', true);
+  const f = $('form', m.el), typeBox = $('[data-type]', f);
+  if (f.pick && cur && !sites.some(s => s.url === cur)) f.pick.value = '__type';
+  if (f.pick) { f.pick.onchange = () => { typeBox.hidden = f.pick.value !== '__type'; if (!typeBox.hidden) f.gsc.focus(); }; }
+  const save = async v => {
+    m.close();
+    try {
+      await stage(v ? 'Connecting Search Console' : 'Disconnecting Search Console', v ? ['Reaching Google Search Console', 'Checking access to ' + v, 'Saving'] : ['Saving'], async () => { await call('elSetGsc', { domain: c.domain, gsc: v }); await refresh(); }, v ? 'Search Console connected' : 'Disconnected');
+      toast(v ? 'Search Console connected for ' + c.name : 'Search Console disconnected');
+    } catch (err) { setTimeout(() => gscForm(Object.assign({}, c, { gsc: v })), 400); }
+  };
+  f.onsubmit = e => {
+    e.preventDefault();
+    let v = f.pick && f.pick.value !== '__type' ? f.pick.value : f.gsc.value.trim();
+    if (v && !/^sc-domain:/i.test(v) && !/^https?:\/\//i.test(v)) v = 'sc-domain:' + v.replace(/^www\./, '');
+    if (v && /^https?:\/\//i.test(v) && !/\/$/.test(v)) v += '/';
+    if (!v) { const er = $('.err', f); er.hidden = false; er.textContent = 'Choose or type the Search Console property.'; return; }
+    save(v);
+  };
+  const off = $('[data-off]', f); if (off) off.onclick = () => save('');
+}
+
+/* ---------- AI visibility ----------
+   Visits from AI assistants come from Google Analytics, leads from them from the snippet, and AI Overview
+   checks from the EDGE AI Visibility Tracker (connected once for all clients). */
+async function aiLoad() {
+  if (S.aiBusy) return; S.aiBusy = 1;
+  try { const j = await call('elAiStatus'); if (j && j.ok) { S.ai = j; draw(); } } catch (e) {}
+  S.aiBusy = 0;
+}
+const aiTracked = c => !!(S.ai && S.ai.connected && (S.ai.domains || []).indexOf(c.domain) > -1);
+function aiState(c) {
+  const parts = [];
+  if (gaOf(c)) parts.push('visits from GA');
+  if (c.site) parts.push('leads');
+  if (aiTracked(c)) parts.push('AI Overview checks');
+  return { on: !!(gaOf(c) || aiTracked(c)), txt: parts.length ? parts.join(' · ') : 'connect GA or the Tracker' };
+}
+function aiForm(c) {
+  const T = S.ai || {}, ga = !!gaOf(c), tr = aiTracked(c);
+  const row = (ok, title, sub, btn) => '<div class="ai-src' + (ok ? ' ok' : '') + '"><i>' + (ok ? '✓' : '') + '</i><div><b>' + title + '</b><small>' + sub + '</small></div>' + (btn || '') + '</div>';
+  const m = modal('<h2>AI visibility · ' + esc(c.name) + '</h2><p class="s">Shows how ChatGPT, Perplexity, Gemini, Copilot and Claude send people to the business, and whether Google’s AI Overviews mention it, in an <b>AI visibility</b> tab on their dashboard.</p>' +
+    row(ga, 'Visits from AI assistants', ga ? 'From Google Analytics (property ' + esc(gaOf(c)) + ').' : 'Needs Google Analytics on this client.', ga ? '' : '<button type="button" class="btn sm" data-ga>Connect GA</button>') +
+    row(!!c.site, 'Leads from AI assistants', c.site ? 'From the website snippet: leads arriving from an AI assistant are recognised automatically.' : 'Needs the website snippet on this client.') +
+    row(tr, 'Google AI Overview checks', tr ? 'From the AI Visibility Tracker: each tracked search, checked for an AI Overview that cites or names the business.'
+      : T.connected ? esc(c.domain) + ' isn’t followed by the Tracker yet. Add it as an SEO client with keywords in the EDGE SEO tool; the Tracker picks it up from there.'
+      : 'The AI Visibility Tracker isn’t connected to Easyleads yet. Connect it once below and it works for every client it follows.') +
+    (T.connected ? '<div class="note">Tracker connected · follows ' + (T.domains || []).length + ' websites' + (T.error ? ' · <span style="color:var(--bad)">' + esc(T.error) + '</span>' : '') + '. <button type="button" class="link" data-trk>Change</button></div>' : '') +
+    '<form data-tf' + (T.connected ? ' hidden' : '') + '><label class="f">AI Visibility Tracker web app URL</label><input class="in" name="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">' +
+    '<label class="f">Tracker key</label><input class="in" name="key" type="password" autocomplete="off" placeholder="The key from the SEO tool’s AI Visibility settings (⚙)"><div class="err" hidden></div>' +
+    '<p class="s" style="margin-top:8px">Both are in the EDGE SEO tool → AI Visibility tab → ⚙. The key stays on the Easyleads server and is never shown again.</p>' +
+    '<div class="mf">' + (T.connected ? '<button type="button" class="btn bad" data-tdis style="margin-right:auto">Disconnect the Tracker</button>' : '') + '<button class="btn pri">Connect the Tracker</button></div></form>' +
+    '<div class="mf" data-done><button type="button" class="btn pri" data-close>Done</button></div>', true);
+  const gb = $('[data-ga]', m.el); if (gb) gb.onclick = () => { m.close(); gaForm(c); };
+  const tf = $('[data-tf]', m.el), ch = $('[data-trk]', m.el);
+  if (ch) ch.onclick = () => { tf.hidden = false; tf.url.focus(); };
+  const send = async (url, key) => {
+    const er = $('.err', tf); er.hidden = true;
+    try {
+      const j = await call('elSetTracker', { url, key });
+      if (j && j.error) throw new Error(j.error);
+      S.ai = Object.assign({}, S.ai || {}, { connected: !!j.connected, domains: j.domains || [], error: '' });
+      m.close(); draw(); toast(j.connected ? 'AI Visibility Tracker connected · follows ' + (j.domains || []).length + ' websites' : 'Tracker disconnected'); aiLoad();
+    } catch (err) { er.hidden = false; er.textContent = err.message; }
+  };
+  tf.onsubmit = e => { e.preventDefault(); const u = tf.url.value.trim(), k = tf.key.value.trim(); if (!u || !k) { const er = $('.err', tf); er.hidden = false; er.textContent = 'Paste both the URL and the key.'; return; } send(u, k); };
+  const td = $('[data-tdis]', m.el); if (td) td.onclick = () => { if (confirm('Disconnect the AI Visibility Tracker from Easyleads? AI Overview checks disappear from every dashboard.')) send('', ''); };
+}
+
 async function clientAct(a, c) {
   if (!c) return;
   $$('.menu.open').forEach(x => x.classList.remove('open'));
@@ -890,6 +993,8 @@ async function clientAct(a, c) {
     if (a === 'reconnect') return clientForm(c);
     if (a === 'snippet') return showSnippet(c);
     if (a === 'ga') return gaForm(c);
+    if (a === 'gsc') return gscForm(c);
+    if (a === 'ai') return aiForm(c);
     if (a === 'import') return importForm(c);
     if (a === 'bot') {
       await stage(c.bot ? 'Turning the assistant off' : 'Turning the assistant on', c.bot ? ['Updating ' + c.name, 'Saving'] : ['Updating ' + c.name, 'Preparing their dashboard data', 'Saving'], async () => { await call('portalAdminBot', { domain: c.domain, on: !c.bot }); await refresh(); }, 'Assistant ' + (c.bot ? 'off' : 'on'));
