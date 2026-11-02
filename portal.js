@@ -464,15 +464,56 @@ function markMenu(btn, r, M, onDone){
     catch(e){ M[r.id] = before; onDone(); toast('Couldn’t save that mark: ' + e.message); }
   }));
 }
+/* ----- the same person across every submission, past and future -----
+   A person is their email, else their phone number (last ten digits), else
+   their name. Their whole history comes from one long request for the
+   business's form leads (kept for the visit), so a lead from three years ago
+   and one from today line up. */
+const personKey = r => {
+  const e = String(r.email || '').trim().toLowerCase(); if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) return 'e:' + e;
+  const p = String(r.phone || '').replace(/\D/g, ''); if (p.length >= 7) return 'p:' + p.slice(-10);
+  const n = String(r.name || '').trim().toLowerCase().replace(/\s+/g, ' '); return n.length > 2 ? 'n:' + n : '';
+};
+const HIST = {};
+function formsHistory(){
+  const dom = S.domain;
+  if (!HIST[dom]){
+    HIST[dom] = api('portalData', {session: S.session, domain: dom, kind: 'forms', start: '2015-01-01', end: iso(Date.now())})
+      .then(j => { if (j.error) throw new Error(j.error); return j.rows || []; });
+    HIST[dom].catch(() => { delete HIST[dom]; });
+  }
+  return HIST[dom];
+}
+function peopleOf(rows){
+  const m = {}, seen = {};
+  rows.forEach(r => { const k = personKey(r); if (!k) return; const id = r.id || (k + r.at); if (seen[id]) return; seen[id] = 1; (m[k] = m[k] || []).push(r); });
+  Object.values(m).forEach(a => a.sort((x, y) => y.at - x.at));
+  return m;
+}
+function openPerson(list){
+  if (!list || !list.length) return;
+  const f = list[0], nm = (list.find(x => x.name) || f).name || f.email || f.phone || 'Person';
+  const forms = groupBy(list, x => formLabel(x.form)).map(x => x.k + (x.n > 1 ? ' (' + x.n + ')' : '')).join(', ');
+  const b = drawer(nm, [['Submissions', fmt(list.length)], ['First one', fullDate(list[list.length - 1].at)], ['Latest', fullDate(f.at)], ['Email', (list.find(x => x.email) || {}).email], ['Phone', (list.find(x => x.phone) || {}).phone], ['Company', (list.find(x => x.company) || {}).company], ['City', cityOf(list.find(x => cityOf(x)) || f)], ['Forms used', forms]],
+    '<div class="pp-h">' + ic('users', 14) + 'Every submission from this person</div><div data-pl></div>', {sub: esc([(list.find(x => x.email) || {}).email, (list.find(x => x.phone) || {}).phone].filter(Boolean).join(' · '))});
+  listWith(b.querySelector('[data-pl]'), list, x => ({title: formLabel(x.form), sub: esc(fullDate(x.at)) + (x.message ? ' · ' + esc(String(x.message).slice(0, 90)) : ''), icon: ic('form', 15), bg: '#1d7cf2', right: esc(relDay(x.at))}),
+    x => openSubmission(x), 'No submissions.', 25);
+}
+(function(){ if (document.getElementById('pp-css')) return; const st = document.createElement('style'); st.id = 'pp-css';
+  st.textContent = '.pp-badge{display:inline-flex;align-items:center;gap:5px;margin-left:8px;padding:2px 9px 2px 7px;border-radius:99px;background:#eef4ff;color:#1d5fd0;font-size:11.5px;font-weight:700;cursor:pointer;vertical-align:middle;transition:background .2s,transform .2s}.pp-badge:hover{background:#dbe8ff;transform:translateY(-1px)}.pp-badge svg{width:12px;height:12px}' +
+    '.pp-h{display:flex;align-items:center;gap:7px;margin:4px 0 8px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}.pp-box{margin:6px 0 14px;padding:12px 14px;border-radius:14px;background:#f5f8ff;border:1px solid #e2ebfa}.pp-box b{color:var(--ink)}.pp-box button{margin-top:8px}' +
+    '.ib-list{max-height:none}';
+  document.head.appendChild(st); })();
 function drawInbox(h, D, it){
   const st = S.ui[it.id] = S.ui[it.id] || {q: '', sort: 'new', f: {}};
   const rows = D.forms.rows, prev = D.forms.prev;
-  const people = new Set(rows.map(r => (r.email || r.phone || r.name || r.id).toLowerCase())).size;
+  const people = new Set(rows.map(r => personKey(r) || r.id)).size;
+  let P = peopleOf(D.forms.all);
   const cities = groupBy(rows, cityOf), top = cities[0];
   const latest = rows[0];
   h.innerHTML = '<div class="fade-in"><div class="ib-stats">' +
     '<div class="ib-stat"><div class="l">Submissions' + ic('form', 16) + '</div><div class="v">' + fmt(rows.length) + delta(rows.length, prev.length) + '</div><div class="n">' + esc(PERIODS.find(p => p[0] === S.period)[1]) + ' · ' + fmt(prev.length) + ' before</div></div>' +
-    '<div class="ib-stat"><div class="l">People' + ic('users', 16) + '</div><div class="v">' + fmt(people) + '</div><div class="n">different senders</div></div>' +
+    '<div class="ib-stat"><div class="l">People' + ic('users', 16) + '</div><div class="v">' + fmt(people) + '</div><div class="n" data-ppn>different senders</div></div>' +
     '<div class="ib-stat"><div class="l">Top city' + ic('pin', 16) + '</div><div class="v" title="' + esc(top ? top.k : '') + '">' + esc(top ? top.k : '—') + '</div><div class="n">' + (top ? pct(top.n, rows.length) + ' of submissions' : 'no city given yet') + '</div></div>' +
     '<div class="ib-stat"><div class="l">Latest' + ic('cal', 16) + '</div><div class="v">' + esc(latest ? relDay(latest.at) : '—') + '</div><div class="n">' + esc(latest ? fullDate(latest.at) : 'no submissions yet') + '</div></div></div>' +
     '<div class="ib-tools"><label class="search">' + ic('search', 17) + '<input type="search" data-q placeholder="Search names, emails, companies, cities, messages…" value="' + esc(st.q) + '"><kbd>/</kbd></label>' +
@@ -508,14 +549,15 @@ function drawInbox(h, D, it){
     const cl = $('[data-clear]'); if (cl) cl.addEventListener('click', () => { st.f = {}; st.q = ''; $('[data-q]').value = ''; paint(); });
     $('[data-list]').innerHTML = list.length ? list.slice(0, limit).map((r, i) => {
       const nm = r.name || r.email || r.phone || 'New submission', city = cityOf(r), g = chGroup(r.channel);
-      return '<div class="ibrow"><button class="card" type="button" data-i="' + i + '"><div class="av" style="background:' + hue(nm) + '">' + esc(initials(nm)) + '</div><div class="cb"><div class="ch"><b>' + esc(nm) + '</b><time>' + esc(fullDate(r.at)) + '</time></div>' +
+      return '<div class="ibrow"><button class="card" type="button" data-i="' + i + '"><div class="av" style="background:' + hue(nm) + '">' + esc(initials(nm)) + '</div><div class="cb"><div class="ch"><b>' + esc(nm) + (function(){ const k = personKey(r), n = k && P[k] ? P[k].length : 0; return n > 1 ? '<span class="pp-badge" data-pk="' + esc(k) + '" title="This person has sent ' + n + ' submissions in total. Click to see them all.">' + ic('users', 12) + n + ' submissions</span>' : ''; })() + '</b><time>' + esc(fullDate(r.at)) + '</time></div>' +
         '<div class="cc">' + esc([r.email, r.phone].filter(Boolean).join(' · ') || r.company || '—') + '</div>' + (r.message ? '<div class="cm">' + esc(r.message) + '</div>' : '') +
         '<div class="tags"><span class="tag" title="' + esc(r.form) + '"><i style="background:#1d7cf2"></i>' + esc(formLabel(r.form)) + '</span>' + (city ? '<span class="tag loc">' + ic('pin', 12) + esc(city) + '</span>' : '') +
         (g !== 'Not recorded' ? '<span class="tag"><i style="background:' + chColor(g) + '"></i>' + esc(r.channel) + '</span>' : '') + '</div></div></button>' +
         '<div class="mk" data-mki="' + i + '">' + marksHtml(M[r.id], r.id) + '</div></div>';
     }).join('') + (list.length > limit ? '<button class="more" type="button" data-more>Show more · ' + fmt(list.length - limit) + ' left</button>' : '')
       : '<div class="empty">' + (rows.length ? 'No submissions match these filters.' : 'No form submissions in this period yet.') + '</div>';
-    $('[data-list]').querySelectorAll('.card').forEach(el => el.addEventListener('click', () => openSubmission(list[Number(el.dataset.i)])));
+    $('[data-list]').querySelectorAll('.card').forEach(el => el.addEventListener('click', e => { const pb = e.target.closest('[data-pk]'); if (pb){ e.stopPropagation(); openPerson(P[pb.dataset.pk]); return; } openSubmission(list[Number(el.dataset.i)]); }));
+    fitList();
     $('[data-list]').querySelectorAll('[data-mki]').forEach(box => box.addEventListener('click', e => {
       const b = e.target.closest('[data-mk]'); if (!b) return;
       e.stopPropagation();
@@ -538,9 +580,26 @@ function drawInbox(h, D, it){
   $('[data-q]').addEventListener('input', e => { clearTimeout(qT); qT = setTimeout(() => { st.q = e.target.value.trim(); limit = 30; paint(); }, 140); });
   $('[data-sort]').addEventListener('click', e => { st.sort = st.sort === 'new' ? 'old' : 'new'; e.currentTarget.textContent = st.sort === 'new' ? 'Newest first' : 'Oldest first'; paint(); });
   $('[data-export]').addEventListener('click', () => csv('leads-' + S.domain + '-' + iso(Date.now()) + '.csv', [['Received', 'Name', 'Email', 'Phone', 'Company', 'City', 'Province', 'Source', 'Form', 'Page', 'Message', 'Marks']].concat(shownRows().map(r => [fullDate(r.at), r.name, r.email, r.phone, r.company, cityOf(r), regionOf(r), r.channel, r.form, r.page, r.message, (M[r.id] || []).map(m => MARKS[m.s][0] + ' (' + m.by + ')').join('; ')]))));
+  /* The list is as tall as the filters beside it (never shorter than 520 px), so no blank space opens under it. */
+  function fitList(){
+    const side = $('[data-side]'), list = $('[data-list]'), cnt = $('[data-count]'), body = h.querySelector('.ib-body');
+    if (!side || !list || !body) return;
+    const stacked = getComputedStyle(body).gridTemplateColumns.split(' ').length < 2;
+    list.style.maxHeight = stacked ? '640px' : Math.max(520, side.offsetHeight - (cnt ? cnt.offsetHeight + 8 : 0)) + 'px';
+  }
+  if (window.ResizeObserver){ const ro2 = new ResizeObserver(() => fitList()); ro2.observe($('[data-side]')); }
   paint();
   const dom = S.domain;
   marksFor(dom).then(m => { if (!h.isConnected || S.domain !== dom) return; M = m; paint(); }).catch(() => {});
+  /* Everyone's full history, then the badges and how many had been in touch before. */
+  formsHistory().then(all => {
+    if (!h.isConnected || S.domain !== dom) return;
+    P = peopleOf(all.concat(D.forms.all));
+    const keys = [...new Set(rows.map(personKey).filter(Boolean))];
+    const back = keys.filter(k => P[k] && P[k].some(x => x.at < Math.min(...rows.filter(r => personKey(r) === k).map(r => r.at)))).length;
+    const n = h.querySelector('[data-ppn]'); if (n) n.textContent = back ? back + ' had been in touch before' : 'different senders';
+    paint();
+  }).catch(() => {});
 }
 function csv(name, rows){
   const s = rows.map(r => r.map(v => { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(',')).join('\n');
@@ -931,7 +990,17 @@ function drawer(title, pairs, extra, o){
   b.close = close;
   return b;
 }
-const openSubmission = f => drawer(f.name || f.email || 'Form submission',
+const openSubmission = f => { const b = openSubmission0(f); const k = personKey(f); if (!k) return b;
+  const box = document.createElement('div'); box.className = 'pp-box'; box.innerHTML = '<div class="pp-h" style="margin:0">' + ic('users', 14) + 'This person</div><span style="font-size:13px;color:var(--ink-3)">Checking their other submissions…</span>';
+  const dl = b.querySelector('.drawer .kv'); if (dl) dl.parentNode.insertBefore(box, dl);
+  const show = all => { if (!box.isConnected) return; const list = peopleOf(all.concat([f]))[k] || [f];
+    box.innerHTML = '<div class="pp-h" style="margin:0 0 4px">' + ic('users', 14) + 'This person</div>' + (list.length > 1
+      ? '<div style="font-size:13.5px"><b>' + list.length + ' submissions</b> in total, from <b>' + esc(fullDate(list[list.length - 1].at)) + '</b> to <b>' + esc(fullDate(list[0].at)) + '</b>.</div><button class="btn" type="button" data-all>' + ic('users', 14) + 'See all ' + list.length + '</button>'
+      : '<div style="font-size:13.5px">This is the only submission from them so far.</div>');
+    const a = box.querySelector('[data-all]'); if (a) a.addEventListener('click', () => { b.close(); openPerson(list); }); };
+  formsHistory().then(show).catch(() => show([f]));
+  return b; };
+const openSubmission0 = f => drawer(f.name || f.email || 'Form submission',
   [['Received', fullDate(f.at)], ['Form', f.form], ['Email', f.email], ['Phone', f.phone], ['Company', f.company], ['City', cityOf(f)], ['Province / state', regionOf(f)], ['Source', f.channel], ['Page', f.page]]
     .concat((f.fields || []).filter(x => !/^(phone|company|message|comments?|questions?|city|town|province|state|region)$/i.test(x[0]) && x[1] !== f.message)),
   f.message ? '<div class="msgbox">' + esc(f.message) + '</div>' : '', {sub: esc([f.email, f.phone].filter(Boolean).join(' · '))});
