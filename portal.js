@@ -141,10 +141,13 @@ const LKEY = 'el_d1|';
 const sigOf = j => { const s = JSON.stringify(Object.assign({}, j, {at: 0, stale: 0})); let h = 2166136261; for (let i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return s.length + ':' + (h >>> 0); };
 setTimeout(() => kv.prune(LKEY, 4 * day), 8000);
 const fresh = kind => { const domain = S.domain; setTimeout(() => { try{ window.dispatchEvent(new CustomEvent('el-fresh', {detail: {kind, domain}})); }catch(e){} }, 0); };
-const shape = (kind, j, cur, prev) => { const all = j.rows || []; return {all, rows: kind === 'appts' ? all : all.filter(x => inR(x, cur)), prev: kind === 'appts' ? [] : all.filter(x => inR(x, prev)), extra: j.extra || null, at: j.at}; };
+/* Appointments, Search Console and AI visibility are asked for this period only: the last two carry
+   their own earlier days for the comparison, and totals (searches, pages, AI Overview checks) with no date. */
+const ONE_K = {appts: 1, gsc: 1, ai: 1};
+const shape = (kind, j, cur, prev) => { const all = j.rows || []; return {all, rows: ONE_K[kind] ? all : all.filter(x => inR(x, cur)), prev: ONE_K[kind] ? [] : all.filter(x => inR(x, prev)), extra: j.extra || null, at: j.at}; };
 /* One request covers this period and the one before, so every widget can show the change. */
 function get(kind, p){
-  const cur = range(p), prev = kind === 'appts' ? cur : prevRange(p);
+  const cur = range(p), prev = ONE_K[kind] ? cur : prevRange(p);
   const k = [S.domain, kind, iso(prev.s), iso(cur.e)].join('|');
   const c = S.cache[k];
   if (c && Date.now() - c.at < 4 * 60000) return c.p;
@@ -227,6 +230,19 @@ const W = {
   web_trend: {g: 'Website', t: 'Visits and leads over time', d: 'Website visits day by day, with the leads they brought in.', ic: 'line', tint: '#0086ff', c: 8, sk: 'chart', needs: ['ga', 'forms'], soft: true, ga: true, draw: drawWebTrend},
   web_sources: {g: 'Website', t: 'Where visitors come from', d: 'Visits by channel: search, ads, social, email, other sites and direct.', ic: 'donut', tint: '#16a37a', c: 4, sk: 'chart', needs: ['ga'], ga: true, draw: drawWebSources},
   web_pages: {g: 'Website', t: 'Most visited pages', d: 'The pages people look at most, with how many people saw each.', ic: 'book', tint: '#0891b2', c: 6, sk: 'list', needs: ['ga'], ga: true, draw: drawWebPages},
+  sc_kpis: {g: 'Google Search', t: 'Google Search at a glance', d: 'Clicks, impressions, click rate and average position on Google, from Search Console.', ic: 'search', tint: '#1a73e8', c: 12, sk: 'kpis', needs: ['gsc'], gsc: true, draw: drawScKpis},
+  sc_trend: {g: 'Google Search', t: 'Clicks from Google over time', d: 'Clicks from Google search day by day, with the leads that came from search.', ic: 'line', tint: '#1a73e8', c: 8, sk: 'chart', needs: ['gsc', 'forms'], soft: true, gsc: true, draw: drawScTrend},
+  sc_devices: {g: 'Google Search', t: 'Search clicks by device', d: 'Phone, computer or tablet: how people searching on Google reach the site.', ic: 'donut', tint: '#16a37a', c: 4, sk: 'chart', needs: ['gsc'], gsc: true, draw: drawScDevices},
+  sc_queries: {g: 'Google Search', t: 'What people search for', d: 'The Google searches the site showed up for, with clicks, impressions, click rate and position.', ic: 'search', tint: '#1a73e8', c: 12, sk: 'list', needs: ['gsc'], gsc: true, draw: drawScQueries},
+  sc_almost: {g: 'Google Search', t: 'Almost on page one', d: 'Searches where the site sits just below the top results: the quickest wins.', ic: 'target', tint: '#d97706', c: 6, sk: 'list', needs: ['gsc'], gsc: true, draw: drawScAlmost},
+  sc_pages: {g: 'Google Search', t: 'Pages Google sends people to', d: 'The pages that get the most clicks from Google search.', ic: 'book', tint: '#0891b2', c: 6, sk: 'list', needs: ['gsc'], gsc: true, draw: drawScPages},
+  sc_countries: {g: 'Google Search', t: 'Search clicks by country', d: 'Where the people clicking through from Google are.', ic: 'pin', tint: T.loc, c: 6, sk: 'list', needs: ['gsc'], gsc: true, draw: drawScCountries},
+  ai_kpis: {g: 'AI visibility', t: 'AI visibility at a glance', d: 'Visits and leads from ChatGPT, Perplexity, Gemini, Copilot and Claude, and how often Google’s AI Overviews mention the business.', ic: 'bolt', tint: '#7c3aed', c: 12, sk: 'kpis', needs: ['ai', 'forms'], soft: true, ai: true, draw: drawAiKpis},
+  ai_trend: {g: 'AI visibility', t: 'Visits from AI assistants over time', d: 'Visits from AI assistants day by day, with the leads they brought in.', ic: 'line', tint: '#7c3aed', c: 8, sk: 'chart', needs: ['ai', 'forms'], soft: true, ai: true, draw: drawAiTrend},
+  ai_assistants: {g: 'AI visibility', t: 'Which AI assistants send visitors', d: 'Visits by assistant: ChatGPT, Perplexity, Gemini, Copilot, Claude and others.', ic: 'donut', tint: '#7c3aed', c: 4, sk: 'chart', needs: ['ai'], ai: true, draw: drawAiAssistants},
+  ai_overviews: {g: 'AI visibility', t: 'Google AI Overviews', d: 'For each tracked search: whether Google showed an AI Overview, and whether it cited or named the business.', ic: 'search', tint: '#1baf7a', c: 12, sk: 'list', needs: ['ai'], ai: true, draw: drawAiOverviews},
+  ai_pages: {g: 'AI visibility', t: 'Pages AI assistants send people to', d: 'Where visitors from AI assistants land on the site.', ic: 'book', tint: '#0891b2', c: 6, sk: 'list', needs: ['ai'], ai: true, draw: drawAiPages},
+  ai_leads: {g: 'AI visibility', t: 'Leads from AI assistants', d: 'Form leads from people who came from ChatGPT, Perplexity, Gemini, Copilot or Claude.', ic: 'form', tint: '#7c3aed', c: 6, sk: 'list', needs: ['forms'], ai: true, draw: drawAiLeads},
   web_cities: {g: 'Website', t: 'Where visitors are', d: 'Visitors by city, from Google Analytics.', ic: 'pin', tint: T.loc, c: 6, sk: 'list', needs: ['ga'], ga: true, draw: drawWebCities},
   note: {g: 'Text', t: 'Heading & summary', d: 'A heading and a short write-up. Attach it to a widget and it explains that widget’s numbers in plain words.', ic: 'spark', tint: '#475569', c: 12, sk: 'note', needs: [], draw: drawNote}
 };
@@ -234,7 +250,10 @@ const W = {
 const SITE_K = {forms: 1, calls: 1};
 const srcOf = () => ((S.me && S.me.clients.find(c => c.domain === S.domain)) || {}).source || 'easyleads';
 const gaOn = () => !!((S.me && S.me.clients.find(c => c.domain === S.domain)) || {}).ga;
-const okFor = t => { const w = W[t]; if (!w) return false; if (w.only && w.only.indexOf(S.domain) < 0) return false; if (w.ga) return gaOn(); if (t === 'note' || srcOf() === 'easyleads') return true; if (w.el) return false; return w.soft ? w.needs.some(k => SITE_K[k]) : w.needs.every(k => SITE_K[k]); };
+const gscOn = () => !!((S.me && S.me.clients.find(c => c.domain === S.domain)) || {}).gsc;
+const aiOn = () => !!((S.me && S.me.clients.find(c => c.domain === S.domain)) || {}).ai;
+const kOn = k => k === 'ga' ? gaOn() : k === 'gsc' ? gscOn() : k === 'ai' ? aiOn() : null;
+const okFor = t => { const w = W[t]; if (!w) return false; if (w.only && w.only.indexOf(S.domain) < 0) return false; if (w.ga) return gaOn(); if (w.gsc) return gscOn(); if (w.ai) return aiOn(); if (t === 'note' || srcOf() === 'easyleads') return true; if (w.el) return false; return w.soft ? w.needs.some(k => SITE_K[k]) : w.needs.every(k => SITE_K[k]); };
 const needsOf = it => it.t === 'note' ? (it.about && W[it.about] && it.about !== 'note' ? W[it.about].needs : []) : W[it.t].needs;
 /* Anything a business can't have yet is left out of its report entirely (it stays in the layout, so it shows up by itself once available). */
 const visIt = it => it.t === 'note' ? (!it.about || okFor(it.about)) : okFor(it.t);
@@ -279,6 +298,7 @@ function errHtml(e){
   if (e && e.code === 'scope') return '<div class="err">' + ic('lock', 22) + '<br><b>Not switched on yet</b><br>This needs “' + esc(e.scope) + '” access on your ' + esc(BRAND) + ' account. Your Easyleads team can turn it on for you.</div>';
   if (e && e.code === 'hidden') return '<div class="err">' + ic('lock', 22) + '<br><b>Hidden from this business</b><br>They don’t see this widget. It shows up for them by itself once it’s available.</div>';
   if (e && /^ga_/.test(e.code || '')) return '<div class="err">' + ic('lock', 22) + '<br><b>Google Analytics isn’t answering</b><br>' + (e.code === 'ga_access' ? 'Access to the Google Analytics property was removed.' : 'The Google Analytics property couldn’t be read.') + ' Your Easyleads team can reconnect it.</div>';
+  if (e && /^gsc_/.test(e.code || '')) return '<div class="err">' + ic('lock', 22) + '<br><b>Search Console isn’t answering</b><br>' + (e.code === 'gsc_access' ? 'Access to the Search Console property was removed.' : e.code === 'gsc_scope' ? 'Search Console still needs to be approved.' : 'The Search Console property couldn’t be read.') + ' Your Easyleads team can reconnect it.</div>';
   if (e && e.code === 'notavailable') return '<div class="err">' + ic('lock', 22) + '<br><b>Not available for this business</b><br>This widget needs an ' + esc(BRAND) + ' account. Your Easyleads team can tell you more.</div>';
   if (e && e.code === 'notconnected') return '<div class="err"><b>Your ' + esc(BRAND) + ' account isn’t connected yet.</b><br>Your Easyleads team will let you know when it’s ready.</div>';
   return '<div class="err">Couldn’t load this right now.<br><span style="font-size:12px">' + esc(e && e.message || e) + '</span></div>';
@@ -513,6 +533,10 @@ function openPerson(list){
 }
 (function(){ if (document.getElementById('pp-css')) return; const st = document.createElement('style'); st.id = 'pp-css';
   st.textContent = '.mk-menu.down{bottom:auto;top:30px}' +
+    '.sc-bar{display:flex;align-items:center;gap:12px;margin-bottom:10px}.sc-bar input{flex:1;max-width:320px;height:36px;border:1px solid var(--line);border-radius:10px;padding:0 12px;font:inherit;background:#fff}.sc-bar input:focus{outline:none;border-color:#1a73e8;box-shadow:0 0 0 3px rgba(26,115,232,.12)}.sc-bar span{font-size:12.5px;color:var(--ink-3)}' +
+    '.sc-sort{border:0;background:none;font:inherit;color:inherit;cursor:pointer;padding:0}.sc-sort.on{color:#1a73e8}.sc-sort.on:after{content:" ↓"}' +
+    '.ai-st{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--ink-2);padding:3px 9px 3px 8px;border-radius:99px;background:color-mix(in srgb,var(--c) 10%,#fff);white-space:nowrap}.ai-st i{width:7px;height:7px;border-radius:50%;background:var(--c)}.ai-st b{color:var(--ink)}' +
+    '.ai-sum{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:12px}.ai-sum em{margin-left:auto;font-style:normal;font-size:12px;color:var(--ink-3)}' +
     '.tm-btn{width:auto;min-width:40px;padding:0 9px}.tm-btn.live{border-color:#bfe8d4;background:#f2fbf6}.tm-btn [data-teamav]{display:flex;align-items:center;gap:4px}.tm-btn em{font-style:normal;font-size:11.5px;font-weight:700;color:var(--ink-2)}' +
     '.tm-stack{display:flex}.tm-stack i{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;color:#fff;font:700 10px var(--ui);font-style:normal;border:2px solid #fff;margin-left:-7px;position:relative}.tm-stack i:first-child{margin-left:0}.tm-btn.live .tm-stack i:last-child:after{content:"";position:absolute;right:-3px;bottom:-2px;width:8px;height:8px;border-radius:50%;background:#12a26b;border:2px solid #fff}' +
     '.tm-pop{width:min(380px,calc(100vw - 24px))}.tm-live{display:inline-flex;align-items:center;gap:6px;font:500 12px var(--ui);color:var(--ink-3)}.tm-live i{width:7px;height:7px;border-radius:50%;background:#12a26b}' +
@@ -739,6 +763,136 @@ function drawWebPages(h, D){
 function drawWebCities(h, D){
   const rows = D.ga.rows.filter(x => x.t === 'g'), tot = gaSum(rows, 'u');
   ranked(h, gaGroup(rows, x => x.city + (x.region && x.region !== '(not set)' ? ', ' + x.region : ''), x => x.u).slice(0, 10), T.loc, {sub: x => pct(x.n, tot) + ' of visitors', empty: 'No visitor locations recorded in this period yet.'});
+}
+/* ----- Google Search (Search Console) ----- */
+const SC_C = '#1a73e8', SC_I = '#a142f4';
+const scDays = (D, r) => D.gsc.all.filter(x => x.t === 'd' && inR(x, r));
+const scTot = rows => { const c = gaSum(rows, 'c'), i = gaSum(rows, 'i'), pw = rows.reduce((s, x) => s + (x.pos || 0) * (x.i || 0), 0); return {c, i, ctr: i ? c / i : 0, pos: i ? pw / i : 0}; };
+const pos1 = n => n ? (Math.round(n * 10) / 10).toFixed(1) : '—';
+const posDelta = (a, b) => { if (!a || !b) return ''; const d = Math.round((b - a) * 10) / 10; return !d ? '<span class="delta flat">0</span>' : '<span class="delta ' + (d > 0 ? 'up' : 'down') + '">' + (d > 0 ? '▲ ' : '▼ ') + Math.abs(d).toFixed(1) + '</span>'; };
+const scNone = '<div class="empty">No Google search data for this period yet. Search Console reports two to three days late.</div>';
+const isSearchLead = f => chGroup(f.channel) === 'Organic' || /google\s*\/\s*organic|bing\s*\/\s*organic/i.test(f.source || '');
+function drawScKpis(h, D){
+  const r = range(), a = scDays(D, r), b = scDays(D, prevRange()), A = scTot(a), B = scTot(b);
+  if (!a.length && !b.length){ h.innerHTML = scNone; return; }
+  const tile = (label, val, d, note, icon, tint, sp) => '<div class="kpi" style="--t:' + tint + ';cursor:default"><div class="l">' + esc(label) + ic(icon, 16) + '</div><div class="v">' + val + (d || '') + '</div><div class="n">' + note + '</div>' + (sp || '') + '</div>';
+  h.innerHTML = '<div class="kpis fade-in">' + [
+    tile('Clicks from Google', fmt(A.c), delta(A.c, B.c), 'vs ' + fmt(B.c) + ' the period before', 'search', SC_C, spark(gaSeries(a, r, 'c'), SC_C)),
+    tile('Impressions', fmt(A.i), delta(A.i, B.i), 'times the site showed up in results', 'eye', SC_I, spark(gaSeries(a, r, 'i'), SC_I)),
+    tile('Click rate', A.i ? (A.ctr * 100).toFixed(1) + '%' : '—', '', 'of people who saw it clicked · was ' + (B.i ? (B.ctr * 100).toFixed(1) + '%' : '—'), 'target', '#16a37a'),
+    tile('Average position', pos1(A.pos), posDelta(A.pos, B.pos), 'place in Google’s results (1 is the top) · was ' + pos1(B.pos), 'bolt', '#d97706')].join('') + '</div>';
+}
+function drawScTrend(h, D){
+  const r = range(), days = Math.round((r.e - r.s) / day) + 1, labels = [];
+  for (let i = 0; i < days; i++) labels.push(new Date(r.s + i * day).toLocaleDateString('en-CA', {month: 'short', day: 'numeric'}));
+  const a = scDays(D, r);
+  if (!a.length){ h.innerHTML = scNone; return; }
+  /* Google is two to three days behind: end the chart on its last day rather than dropping to zero. */
+  const last = Math.min(days, Math.floor((Math.max(...a.map(x => x.at)) - r.s) / day) + 1), cut = v => v.slice(0, last);
+  const series = [{name: 'Clicks from Google', values: cut(gaSeries(a, r, 'c')), color: SC_C}];
+  if (D.forms) series.push({name: 'Leads from search', values: cut(daySeries(D.forms.rows.filter(isSearchLead), r)), color: '#0f9d6b'});
+  lineChart(h, cut(labels), series, 240);
+}
+function drawScDevices(h, D){
+  const rows = D.gsc.all.filter(x => x.t === 'v'), name = {MOBILE: 'Phone', DESKTOP: 'Computer', TABLET: 'Tablet'}, col = {MOBILE: SC_C, DESKTOP: '#0f9d6b', TABLET: '#d97706'};
+  const segs = rows.map(x => ({label: name[x.k] || x.k, n: x.c, color: col[x.k] || '#94a3b8'})).sort((a, b) => b.n - a.n);
+  if (!segs.some(x => x.n)){ h.innerHTML = scNone; return; }
+  const tot = segs.reduce((s, x) => s + x.n, 0);
+  h.innerHTML = '<div class="donutrow fade-in">' + donut(segs, 'CLICKS') + legend(segs, tot) + '</div>';
+}
+function drawScQueries(h, D, it){
+  const all = D.gsc.all.filter(x => x.t === 'q');
+  const st = S.ui[it.id] = S.ui[it.id] || {q: '', by: 'c', n: 25};
+  const draw = () => {
+    const f = st.q.trim().toLowerCase(), list = all.filter(x => !f || x.q.toLowerCase().indexOf(f) > -1).sort((a, b) => st.by === 'pos' ? a.pos - b.pos : (b[st.by] - a[st.by]) || (b.i - a.i));
+    const th = (k, l) => '<th class="num"><button type="button" class="sc-sort' + (st.by === k ? ' on' : '') + '" data-by="' + k + '">' + l + '</button></th>';
+    h.innerHTML = all.length ? '<div class="sc-bar"><input type="search" placeholder="Find a search…" value="' + esc(st.q) + '" data-q><span>' + fmt(list.length) + ' searches</span></div>' +
+      '<div class="tbl-wrap fade-in"><table class="tbl"><thead><tr><th>Search</th>' + th('c', 'Clicks') + th('i', 'Impressions') + '<th class="num">Click rate</th>' + th('pos', 'Position') + '</tr></thead><tbody>' +
+      list.slice(0, st.n).map(x => '<tr><td>' + esc(x.q) + '</td><td class="num">' + fmt(x.c) + '</td><td class="num">' + fmt(x.i) + '</td><td class="num">' + (x.i ? (x.c / x.i * 100).toFixed(1) + '%' : '—') + '</td><td class="num">' + pos1(x.pos) + '</td></tr>').join('') +
+      '</tbody></table></div>' + (list.length > st.n ? '<button class="more" type="button" data-more>Show more · ' + fmt(list.length - st.n) + ' left</button>' : '') : scNone;
+    const q = h.querySelector('[data-q]'); if (q) q.addEventListener('input', () => { st.q = q.value; const at = q.selectionStart; draw(); const q2 = h.querySelector('[data-q]'); q2.focus(); q2.setSelectionRange(at, at); });
+    h.querySelectorAll('[data-by]').forEach(b => b.addEventListener('click', () => { st.by = b.dataset.by; draw(); }));
+    const m = h.querySelector('[data-more]'); if (m) m.addEventListener('click', () => { st.n += 25; draw(); });
+  };
+  draw();
+}
+function drawScAlmost(h, D){
+  const rows = D.gsc.all.filter(x => x.t === 'q' && x.pos >= 8 && x.pos <= 20 && x.i >= 5).sort((a, b) => b.i - a.i).slice(0, 10);
+  ranked(h, rows.map(x => ({k: x.q, n: x.i})), '#d97706', {val: x => fmt(x.n) + ' views', sub: x => 'position ' + pos1(rows.find(y => y.q === x.k).pos), empty: 'No searches sitting just below the top results in this period.'});
+}
+function drawScPages(h, D){
+  const rows = D.gsc.all.filter(x => x.t === 'p').sort((a, b) => b.c - a.c).slice(0, 10);
+  const short = u => { const p = String(u).replace(/^https?:\/\/[^\/]+/i, '') || '/'; return p === '/' ? 'Home page' : p; };
+  ranked(h, rows.map(x => ({k: x.u, label: short(x.u), n: x.c, i: x.i})), '#0891b2', {val: x => fmt(x.n) + ' clicks', sub: x => fmt(x.i) + ' impressions', empty: 'No clicks from Google in this period yet.'});
+}
+const COUNTRY = {can: 'Canada', usa: 'United States', gbr: 'United Kingdom', ind: 'India', aus: 'Australia', phl: 'Philippines', deu: 'Germany', fra: 'France', mex: 'Mexico', chn: 'China', bra: 'Brazil', pak: 'Pakistan', nga: 'Nigeria', zaf: 'South Africa', nld: 'Netherlands', irl: 'Ireland', nzl: 'New Zealand', are: 'United Arab Emirates', sau: 'Saudi Arabia', esp: 'Spain', ita: 'Italy', jpn: 'Japan', kor: 'South Korea', sgp: 'Singapore', bgd: 'Bangladesh', idn: 'Indonesia', vnm: 'Vietnam', egy: 'Egypt', tur: 'Turkey', pol: 'Poland'};
+function drawScCountries(h, D){
+  const rows = D.gsc.all.filter(x => x.t === 'g').sort((a, b) => b.c - a.c).slice(0, 10), tot = gaSum(D.gsc.all.filter(x => x.t === 'g'), 'c');
+  ranked(h, rows.map(x => ({k: COUNTRY[x.k] || String(x.k).toUpperCase(), n: x.c})), T.loc, {sub: x => pct(x.n, tot) + ' of clicks', empty: 'No clicks from Google in this period yet.'});
+}
+
+/* ----- AI visibility ----- */
+const AI_C = '#7c3aed', AI_COL = {ChatGPT: '#10a37f', Perplexity: '#1f8a9e', Gemini: '#4285f4', Copilot: '#0078d4', Claude: '#d97757', 'Meta AI': '#0866ff', DeepSeek: '#4d6bfe', Grok: '#111827', 'Other AI': '#94a3b8'};
+const AI_RE = /chatgpt|openai|perplexity|gemini\.google|bard\.google|copilot|claude\.ai|meta\.ai|deepseek|grok|mistral|you\.com|phind/i;
+const isAiLead = f => chGroup(f.channel) === 'AI assistants' || AI_RE.test(f.source || '') || AI_RE.test(f.referrer || '');
+const aiName = s => { s = String(s || '').toLowerCase(); return /chatgpt|openai/.test(s) ? 'ChatGPT' : /perplexity/.test(s) ? 'Perplexity' : /gemini|bard/.test(s) ? 'Gemini' : /copilot/.test(s) ? 'Copilot' : /claude|anthropic/.test(s) ? 'Claude' : 'Other AI'; };
+const aiVisits = (D, r) => D.ai ? D.ai.all.filter(x => x.t === 'a' && inR(x, r)) : [];
+/* The latest run of AI Overview checks, one per search and place. */
+function aioLatest(D){
+  const all = D.ai ? D.ai.all.filter(x => x.t === 'o') : [], run = all.reduce((m, c) => c.d > m ? c.d : m, ''), seen = {};
+  return {run, list: all.filter(c => c.d === run).filter(c => { const k = c.k + '|' + c.loc; if (seen[k]) return false; seen[k] = 1; return true; })};
+}
+const aioState = c => c.cited ? ['Cited', '#0f9d6b'] : c.named ? ['Named', '#1a73e8'] : c.shown ? ['Not mentioned', '#d97706'] : ['No AI Overview', '#94a3b8'];
+const aiNone = '<div class="empty">No visits from AI assistants recorded in this period yet.</div>';
+function drawAiKpis(h, D){
+  const r = range(), pr = prevRange(), a = aiVisits(D, r), b = aiVisits(D, pr);
+  const tile = (label, val, d, note, icon, tint, sp) => '<div class="kpi" style="--t:' + tint + ';cursor:default"><div class="l">' + esc(label) + ic(icon, 16) + '</div><div class="v">' + val + (d || '') + '</div><div class="n">' + note + '</div>' + (sp || '') + '</div>';
+  const t = [], ex = (D.ai && D.ai.extra) || {};
+  if (ex.ga !== false && D.ai){ const sa = gaSum(a, 's'), sb = gaSum(b, 's'); t.push(tile('Visits from AI assistants', fmt(sa), delta(sa, sb), 'vs ' + fmt(sb) + ' the period before', 'source', AI_C, spark(gaSeries(a, r, 's'), AI_C))); }
+  if (D.forms){ const la = D.forms.rows.filter(isAiLead), lb = D.forms.prev.filter(isAiLead); t.push(tile('Leads from AI assistants', fmt(la.length), delta(la.length, lb.length), 'form leads from people who came from an AI assistant', 'form', T.forms, spark(daySeries(la, r), T.forms))); }
+  const L = aioLatest(D).list;
+  if (L.length){ const m = L.filter(c => c.cited || c.named).length; t.push(tile('Mentioned in AI Overviews', pct(m, L.length), '', fmt(m) + ' of ' + fmt(L.length) + ' tracked searches · ' + fmt(L.filter(c => c.shown).length) + ' showed an AI Overview', 'search', '#1baf7a')); }
+  const gi = D.ai ? D.ai.all.filter(x => x.t === 'gi') : [];
+  if (gi.length){ const ga = gaSum(gi.filter(x => inR(x, r)), 'n'), gb = gaSum(gi.filter(x => inR(x, pr)), 'n'); t.push(tile('Seen in Google’s AI answers', fmt(ga), delta(ga, gb), 'impressions in AI Overviews and AI Mode', 'eye', '#1a73e8')); }
+  const bc = D.ai ? D.ai.all.filter(x => x.t === 'bc') : [];
+  if (bc.length){ const ca = gaSum(bc.filter(x => inR(x, r)), 'n'), cb = gaSum(bc.filter(x => inR(x, pr)), 'n'); t.push(tile('Cited by Copilot', fmt(ca), delta(ca, cb), 'times Bing’s Copilot pointed to the site', 'bolt', '#0078d4')); }
+  h.innerHTML = t.length ? '<div class="kpis fade-in">' + t.join('') + '</div>' : aiNone;
+}
+function drawAiTrend(h, D){
+  const r = range(), days = Math.round((r.e - r.s) / day) + 1, labels = [];
+  for (let i = 0; i < days; i++) labels.push(new Date(r.s + i * day).toLocaleDateString('en-CA', {month: 'short', day: 'numeric'}));
+  const a = aiVisits(D, r), series = [];
+  if (D.ai && D.ai.extra && D.ai.extra.ga !== false) series.push({name: 'Visits from AI assistants', values: gaSeries(a, r, 's'), color: AI_C});
+  if (D.forms) series.push({name: 'Leads from AI assistants', values: daySeries(D.forms.rows.filter(isAiLead), r), color: '#0f9d6b'});
+  if (!series.some(x => x.values.some(Boolean))){ h.innerHTML = aiNone; return; }
+  lineChart(h, labels, series, 240);
+}
+function drawAiAssistants(h, D){
+  const g = gaGroup(aiVisits(D, range()), x => x.ai, x => x.s), segs = g.map(x => ({label: x.k, n: x.n, color: AI_COL[x.k] || '#94a3b8'}));
+  if (!segs.length){ h.innerHTML = aiNone; return; }
+  const tot = segs.reduce((s, x) => s + x.n, 0);
+  h.innerHTML = '<div class="donutrow fade-in">' + donut(segs, 'VISITS') + legend(segs, tot) + '</div>';
+}
+function drawAiPages(h, D){
+  const rows = aiVisits(D, range()), by = {};
+  rows.forEach(x => { const o = by[x.p] = by[x.p] || {}; o[x.ai] = (o[x.ai] || 0) + x.s; });
+  const items = gaGroup(rows, x => x.p, x => x.s).slice(0, 10).map(x => Object.assign(x, {label: x.k === '/' ? 'Home page' : x.k}));
+  ranked(h, items, '#0891b2', {val: x => fmt(x.n) + ' visits', sub: x => Object.keys(by[x.k]).sort((a, b) => by[x.k][b] - by[x.k][a]).slice(0, 2).join(', '), empty: 'No visits from AI assistants recorded in this period yet.'});
+}
+function drawAiOverviews(h, D){
+  const L = aioLatest(D);
+  if (!L.list.length){ h.innerHTML = '<div class="empty">' + (D.ai && D.ai.extra && D.ai.extra.tracker ? 'No AI Overview checks yet for this business.' : 'AI Overview checks appear here once your Easyleads team adds this business to the AI Visibility Tracker.') + '</div>'; return; }
+  const order = c => c.cited ? 0 : c.named ? 1 : c.shown ? 2 : 3;
+  const list = L.list.slice().sort((a, b) => order(a) - order(b) || a.k.localeCompare(b.k));
+  const cnt = s => L.list.filter(c => aioState(c)[0] === s).length;
+  h.innerHTML = '<div class="ai-sum">' + ['Cited', 'Named', 'Not mentioned', 'No AI Overview'].map(s => '<span class="ai-st" style="--c:' + aioState({cited: s === 'Cited', named: s === 'Named', shown: s !== 'No AI Overview'})[1] + '"><i></i>' + s + ' <b>' + cnt(s) + '</b></span>').join('') + '<em>Checked ' + esc(new Date(L.run + 'T12:00:00').toLocaleDateString('en-CA', {month: 'short', day: 'numeric', year: 'numeric'})) + '</em></div>' +
+    '<div class="tbl-wrap fade-in"><table class="tbl"><thead><tr><th>Search</th><th>Place</th><th>AI Overview</th><th>Page cited</th></tr></thead><tbody>' +
+    list.map(c => { const st = aioState(c), u = (c.urls || [])[0]; return '<tr><td>' + esc(c.k) + '</td><td>' + esc(c.loc || '—') + '</td><td><span class="ai-st" style="--c:' + st[1] + '"><i></i>' + st[0] + '</span></td><td>' + (u && /^https?:\/\//.test(u) ? '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(String(u).replace(/^https?:\/\/(www\.)?/, '').slice(0, 48)) + '</a>' : '—') + '</td></tr>'; }).join('') + '</tbody></table></div>';
+}
+function drawAiLeads(h, D){
+  const rows = D.forms ? D.forms.rows.filter(isAiLead) : [];
+  listWith(h, rows, f => ({title: f.name || f.email || f.phone || 'New submission', sub: esc(aiName((f.source || '') + ' ' + (f.referrer || '')) === 'Other AI' ? 'AI assistant' : aiName((f.source || '') + ' ' + (f.referrer || ''))) + ' · ' + esc(f.form || ''), right: esc(when(f.at))}),
+    openSubmission, 'No leads from AI assistants in this period yet. New ones are recognised as they come in.', 6);
 }
 /* ----- email marketing ----- */
 const subjKey = t => String(t || '').replace(/^\s*((re|fw|fwd|aw|tr)\s*:\s*)+/i, '').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -1062,6 +1216,20 @@ function layout(){
       item('web_kpis'), item('web_trend', 8, {h: 420}), item('web_sources', 4, {h: 420}), item('web_pages', 6, {h: 440}), item('web_cities', 6, {h: 440})]});
     if (canEdit()) setTimeout(saveLayout, 0);
   }
+  /* A business with Search Console gets a Google Search tab, and one with AI visibility an AI visibility tab, once each. */
+  const hasAny = f => S.layout.dashes.some(d => d.items.some(i => W[i.t] && W[i.t][f]));
+  if (gscOn() && !hasAny('gsc')){
+    S.layout.dashes.push({id: uid(), name: 'Google Search', items: [
+      item('note', 12, {title: 'How you show up on Google', about: 'sc_kpis', text: 'Clicks, impressions and positions from Google Search Console. Google reports these two to three days late.'}),
+      item('sc_kpis'), item('sc_trend', 8, {h: 420}), item('sc_devices', 4, {h: 420}), item('sc_queries', 12, {h: 520}), item('sc_almost', 6, {h: 460}), item('sc_pages', 6, {h: 460})]});
+    if (canEdit()) setTimeout(saveLayout, 0);
+  }
+  if (aiOn() && !hasAny('ai')){
+    S.layout.dashes.push({id: uid(), name: 'AI visibility', items: [
+      item('note', 12, {title: 'How AI assistants see you', about: 'ai_kpis', text: 'People who found the business through ChatGPT, Perplexity, Gemini, Copilot or Claude, and how often Google’s AI Overviews mention it. AI assistants don’t pass on what the person asked, only that they came from them.'}),
+      item('ai_kpis'), item('ai_trend', 8, {h: 420}), item('ai_assistants', 4, {h: 420}), item('ai_overviews', 12, {h: 480}), item('ai_pages', 6, {h: 440}), item('ai_leads', 6, {h: 440})]});
+    if (canEdit()) setTimeout(saveLayout, 0);
+  }
   /* Widgets made for one client appear on their dashboard by themselves (hidden everywhere else). */
   Object.keys(W).filter(t => W[t].only && W[t].only.indexOf(S.domain) > -1).forEach(t => {
     const L = S.layout;
@@ -1182,7 +1350,7 @@ function drawGrid(dash){
     const body = el.querySelector('[data-body]');
     const needs = needsOf(it);
     if (!visIt(it)){ body.innerHTML = errHtml({code: 'hidden'}); el.style.opacity = '.6'; }
-    else { const load = () => Promise.all(needs.filter(k => k === 'ga' ? gaOn() : (srcOf() === 'easyleads' || SITE_K[k])).map(k => get(k).then(v => [k, v], e => [k, null, e]))).then(res => {
+    else { const load = () => Promise.all(needs.filter(k => kOn(k) !== null ? kOn(k) : (srcOf() === 'easyleads' || SITE_K[k])).map(k => get(k).then(v => [k, v], e => [k, null, e]))).then(res => {
       if (!body.isConnected) return;
       const D = {}, errs = [];
       res.forEach(r => { if (r[1]) D[r[0]] = r[1]; else errs.push(r[2]); });
