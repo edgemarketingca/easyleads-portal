@@ -371,7 +371,7 @@ const I = {
 async function call(action, body) {
   const res = await fetch(API, { method: 'POST', body: JSON.stringify(Object.assign({ action, key: KEY }, body || {})) });
   const j = await res.json();
-  if (j && j.error === 'unauthorized') { const e = new Error('That team key isn’t right.'); e.auth = true; throw e; }
+  if (j && j.error === 'unauthorized') { const e = new Error(String(KEY).indexOf('ts_') === 0 ? 'Your session ended. Sign in again.' : 'That team key isn’t right.'); e.auth = true; throw e; }
   if (j && j.error) throw new Error(j.error);
   return j;
 }
@@ -540,24 +540,187 @@ function countUp(el, to) {
 }
 
 /* ---------- sign in ---------- */
-function signOut() { KEY = ''; try { sessionStorage.removeItem(KEYS); localStorage.removeItem(KEYS); } catch (e) {} signIn(); }
-function signIn() {
-  app.innerHTML = '<div class="splash"><form class="signbox"><div class="brand"><img src="' + WORDMARK + '" alt="Easyleads"></div>' +
-    '<h2>Client console</h2><p>For the Easyleads team. Enter the team key to manage clients, their dashboards and their logins.</p>' +
-    '<label class="f">Team key</label><input class="in" type="password" autocomplete="current-password" required autofocus>' +
-    '<label style="display:flex;gap:9px;align-items:center;margin-top:14px;font-size:13px;color:var(--mute);cursor:pointer"><input type="checkbox"> Remember on this computer</label>' +
-    '<div class="err" hidden></div><button class="btn pri" style="width:100%;margin-top:22px;height:44px">' + I.key + 'Sign in</button></form></div>';
-  const f = $('form', app);
+/* ---------- team sign-in + 5-minute idle sign-out ----------
+   Teammates sign in with their email and password and get a session that the backend ends after
+   5 minutes without activity. This page also watches for activity (mouse, keys, scrolling, taps):
+   after 5 quiet minutes it signs out, in every open tab, and says why on the sign-in screen. */
+const IDLE_MS = 5 * 60 * 1000, LASTK = 'el_console_last', MEK = 'el_console_me';
+let ME = null, BOOT_NOTE = '', lastW = 0;
+try { ME = JSON.parse(localStorage.getItem(MEK) || 'null'); } catch (e) {}
+const isTeamTok = () => String(KEY).indexOf('ts_') === 0;
+const lastActive = () => { try { return +localStorage.getItem(LASTK) || 0; } catch (e) { return 0; } };
+function markActive(force) { const n = Date.now(); if (!force && n - lastW < 4000) return; lastW = n; try { localStorage.setItem(LASTK, String(n)); } catch (e) {} }
+const IDLE_NOTE = 'You were signed out after 5 minutes without activity. Sign in again to continue.';
+if (KEY) {
+  const la = lastActive();
+  if (la && Date.now() - la > IDLE_MS) { KEY = ''; ME = null; BOOT_NOTE = IDLE_NOTE; try { sessionStorage.removeItem(KEYS); localStorage.removeItem(KEYS); localStorage.removeItem(MEK); } catch (e) {} }
+  else markActive(true);
+}
+['pointerdown', 'mousemove', 'keydown', 'wheel', 'touchstart', 'scroll'].forEach(ev => window.addEventListener(ev, () => { if (KEY) markActive(); }, { passive: true, capture: true }));
+function idleCheck() { if (KEY && Date.now() - lastActive() > IDLE_MS) { $$('.stage').forEach(x => x.remove()); signOut('idle'); } }
+setInterval(idleCheck, 10000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) idleCheck(); });
+/* Another tab signed out (or in): follow it. */
+window.addEventListener('storage', e => {
+  if (e.key !== KEYS) return;
+  if (!e.newValue && KEY) { KEY = ''; signOut(Date.now() - lastActive() > IDLE_MS ? 'idle' : ''); }
+});
+/* While someone is active, keep their backend session alive (it ends after 5 quiet minutes). */
+setInterval(() => { if (isTeamTok() && Date.now() - lastActive() < 125000) call('teamPing').catch(err => { if (err.auth) signOut('ended'); }); }, 120000);
+
+function signOut(reason) {
+  const tok = String(KEY || ''); KEY = ''; ME = null;
+  try { sessionStorage.removeItem(KEYS); localStorage.removeItem(KEYS); localStorage.removeItem(MEK); } catch (e) {}
+  if (tok.indexOf('ts_') === 0) fetch(API, { method: 'POST', body: JSON.stringify({ action: 'teamLogout', key: tok }) }).catch(() => {});
+  $$('.back').forEach(b => b.remove());
+  signIn(reason === 'idle' ? IDLE_NOTE : reason === 'ended' ? 'Your session ended. Sign in again to continue.' : '');
+}
+
+const LI = {
+  mail: '<svg class="i" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m4 7 8 6 8-6"/></svg>',
+  lock: '<svg class="i" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
+  shield: '<svg class="i" viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.5 3 8.3 7 10 4-1.7 7-5.5 7-10V6l-7-3z"/><path d="m9 12 2 2 4-4"/></svg>',
+  arrow: '<svg class="i" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
+  inbox: '<svg class="i" viewBox="0 0 24 24"><path d="M3 13h5l1.5 3h5L16 13h5"/><path d="M5 5h14l2 8v6H3v-6l2-8z"/></svg>',
+  team: '<svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c1-3.5 3.5-5.5 6.5-5.5s5.5 2 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18.5 14.8c1.6.8 2.6 2.5 3 5.2"/></svg>',
+  trend: '<svg class="i" viewBox="0 0 24 24"><path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>'
+};
+(function loginCss() {
+  if (document.getElementById('lgcss')) return;
+  const s = document.createElement('style'); s.id = 'lgcss';
+  s.textContent = '.lg{min-height:100vh;display:grid;place-items:center;padding:32px;background:radial-gradient(900px 520px at 0% 0%,#e3f0ff 0,rgba(227,240,255,0) 60%),var(--bg)}' +
+  '.lg-card{width:min(1300px,100%);display:grid;grid-template-columns:1.05fr 1fr;background:#fff;border:1px solid var(--line);border-radius:32px;box-shadow:0 40px 80px -40px rgba(11,12,15,.28),0 2px 6px rgba(11,12,15,.03);overflow:hidden;animation:rise .6s var(--ease) both}' +
+  '.lg-l{position:relative;padding:56px 56px 52px;background:linear-gradient(155deg,#e4f1ff 0%,#f1f7ff 50%,#fbfdff 100%);overflow:hidden;display:flex;flex-direction:column}' +
+  '.lg-l:before{content:"";position:absolute;right:-170px;bottom:-230px;width:560px;height:560px;border-radius:50%;border:1px dashed rgba(0,134,255,.2)}' +
+  '.lg-l:after{content:"";position:absolute;right:-120px;top:-140px;width:420px;height:420px;border-radius:50%;background:radial-gradient(closest-side,rgba(0,134,255,.16),rgba(0,134,255,0))}' +
+  '.lg-l>*{position:relative;z-index:1}' +
+  '.lg-badge{align-self:flex-start;display:inline-flex;align-items:center;background:#fff;border-radius:18px;padding:17px 22px;box-shadow:0 14px 30px -16px rgba(11,12,15,.28)}.lg-badge img{height:26px;display:block}' +
+  '.lg-eye{margin-top:48px;display:flex;align-items:center;gap:12px;color:var(--brand-6);font-size:13px;font-weight:700;letter-spacing:.18em}.lg-eye i{width:26px;height:2px;background:currentColor;border-radius:2px}' +
+  '.lg-l h1{font-size:44px;line-height:1.08;letter-spacing:-.035em;margin:14px 0 14px;font-weight:750}' +
+  '.lg-l p{color:var(--mute);font-size:16px;line-height:1.6;max-width:480px;margin:0}' +
+  '.lg-l ul{list-style:none;padding:0;margin:28px 0 0;display:grid;gap:15px}' +
+  '.lg-l li{display:flex;align-items:center;gap:14px;font-size:15.5px;color:var(--ink-2);font-weight:500}' +
+  '.lg-l li span,.lg-cards span{flex:none;width:36px;height:36px;border-radius:11px;background:#fff;display:grid;place-items:center;color:var(--brand);box-shadow:0 1px 2px rgba(11,12,15,.06),0 0 0 1px rgba(11,12,15,.04)}' +
+  '.lg-l li .i,.lg-cards .i{width:17px;height:17px}' +
+  '.lg-cards{display:flex;gap:12px;margin-top:auto;padding-top:60px}' +
+  '.lg-cards>div{flex:1 1 0;min-width:0;display:flex;gap:12px;align-items:center;background:#fff;border-radius:18px;padding:14px 16px 14px 14px;box-shadow:0 14px 30px -18px rgba(11,12,15,.3),0 0 0 1px rgba(11,12,15,.03)}' +
+  '.lg-cards span{background:var(--brand-1);box-shadow:none}.lg-cards b{display:block;font-size:16px;letter-spacing:-.01em}.lg-cards small{color:var(--mute);font-size:13px}' +
+  '.lg-r{padding:68px 60px;display:flex;flex-direction:column;justify-content:center}' +
+  '.lg-r h2{font-size:34px;letter-spacing:-.035em;margin:0;font-weight:750}' +
+  '.lg-r .s{color:var(--mute);margin:10px 0 34px;font-size:15.5px}' +
+  '.lg-r label{display:block;font-size:12.5px;font-weight:700;letter-spacing:.09em;color:var(--ink-2);margin:0 0 9px}' +
+  '.lg-in{position:relative;display:flex;align-items:center;margin-bottom:22px}' +
+  '.lg-in>.i{position:absolute;left:19px;width:18px;height:18px;color:var(--soft);pointer-events:none;transition:color .2s}' +
+  '.lg-in input{width:100%;height:58px;border:1px solid #d7e6fb;border-radius:15px;background:#eaf3ff;padding:0 54px 0 52px;font:inherit;font-size:16px;color:var(--ink);transition:border-color .2s,box-shadow .2s,background .2s}' +
+  '.lg-in input::placeholder{color:var(--soft)}' +
+  '.lg-in input:focus{outline:0;border-color:var(--brand);background:#fff;box-shadow:0 0 0 4px rgba(0,134,255,.13)}' +
+  '.lg-in:focus-within>.i{color:var(--brand)}' +
+  '.lg-eyeb{position:absolute;right:9px;width:40px;height:40px;border:0;background:none;color:var(--soft);cursor:pointer;border-radius:11px;display:grid;place-items:center}.lg-eyeb:hover{color:var(--ink);background:rgba(11,12,15,.04)}' +
+  '.lg-go{height:60px;border:0;border-radius:15px;background:linear-gradient(180deg,#2a9bff,var(--brand-6));color:#fff;font:inherit;font-weight:650;font-size:16.5px;display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer;box-shadow:0 16px 30px -16px rgba(0,116,230,.85);margin-top:8px;transition:transform .18s var(--ease),filter .2s}' +
+  '.lg-go:hover{transform:translateY(-1px);filter:brightness(1.05)}.lg-go:disabled{opacity:.7;cursor:wait;transform:none}.lg-go .i{width:18px;height:18px}' +
+  '.lg-err{margin-top:20px;padding:13px 18px;border-radius:13px;background:#fdf1f1;border:1px solid #f5cfcf;color:#c0353a;text-align:center;font-size:14.5px;line-height:1.5}' +
+  '.lg-ft{display:flex;justify-content:space-between;align-items:center;gap:12px;border-top:1px solid var(--line);margin-top:32px;padding-top:20px;color:var(--mute);font-size:14px}' +
+  '.lg-ft span{display:flex;gap:9px;align-items:center}.lg-ft span .i{color:var(--ok);width:16px;height:16px}' +
+  '.lg-ft button{border:0;background:none;color:var(--soft);cursor:pointer;font:inherit;font-size:13px}.lg-ft button:hover{color:var(--ink)}' +
+  '@media(max-width:940px){.lg{padding:16px}.lg-card{grid-template-columns:1fr}.lg-l{display:none}.lg-r{padding:44px 28px}}' +
+  '.who{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-2);font-weight:600}.who b{width:28px;height:28px;border-radius:50%;background:var(--brand-1);color:var(--brand-6);display:grid;place-items:center;font-size:11px;font-weight:700}' +
+  '.tm{display:grid;gap:2px;margin:6px 0 4px}.tm-row{display:flex;align-items:center;gap:12px;padding:12px 6px;border-bottom:1px solid var(--line-2)}.tm-row:last-child{border-bottom:0}' +
+  '.tm-av{flex:none;width:38px;height:38px;border-radius:50%;background:var(--brand-1);color:var(--brand-6);display:grid;place-items:center;font-weight:700;font-size:13px}.tm-row.off .tm-av{background:var(--line-2);color:var(--soft)}' +
+  '.tm-tx{flex:1;min-width:0}.tm-tx b{display:block;font-size:14px}.tm-tx small{color:var(--mute);font-size:12.5px}.tm-tag{font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;background:var(--line-2);color:var(--ink-2);margin-left:6px}' +
+  '.tm-empty{padding:22px;text-align:center;color:var(--mute);background:var(--line-2);border-radius:14px}';
+  document.head.appendChild(s);
+})();
+
+function signIn(note) {
+  if (note == null) { note = BOOT_NOTE; BOOT_NOTE = ''; }
+  app.innerHTML = '<div class="lg"><div class="lg-card">' +
+    '<div class="lg-l"><div class="lg-badge"><img src="' + WORDMARK + '" alt="Easyleads"></div>' +
+    '<div class="lg-eye"><i></i>EASYLEADS WORKSPACE</div><h1>Every client, in one place.</h1>' +
+    '<p>The client console the whole Easyleads team shares: client dashboards, logins, and the data behind them.</p>' +
+    '<ul><li><span>' + LI.inbox + '</span>Client dashboards and the Lead inbox</li><li><span>' + I.chart + '</span>Google Analytics, Search Console and AI visibility</li><li><span>' + LI.team + '</span>Client logins and team access</li></ul>' +
+    '<div class="lg-cards"><div><span>' + LI.trend + '</span><div><b>Live</b><small>Leads, synced from Easyleads</small></div></div><div><span>' + LI.team + '</span><div><b>Shared</b><small>One cloud record for the team</small></div></div></div></div>' +
+    '<form class="lg-r" novalidate><h2>Welcome back</h2><p class="s">Sign in to the Easyleads console with your team account.</p>' +
+    '<div data-pw><label for="lg-e">EMAIL</label><div class="lg-in">' + LI.mail + '<input id="lg-e" name="email" type="email" autocomplete="username" placeholder="you@company.com"></div>' +
+    '<label for="lg-p">PASSWORD</label><div class="lg-in">' + LI.lock + '<input id="lg-p" name="pw" type="password" autocomplete="current-password" placeholder="Your password"><button type="button" class="lg-eyeb" data-eye aria-label="Show password">' + I.eye + '</button></div></div>' +
+    '<div data-tk hidden><label for="lg-k">TEAM KEY</label><div class="lg-in">' + I.key + '<input id="lg-k" name="tk" type="password" autocomplete="off" placeholder="The team key"></div></div>' +
+    '<button class="lg-go" type="submit">Sign in ' + LI.arrow + '</button>' +
+    '<div class="lg-err"' + (note ? '' : ' hidden') + '>' + esc(note || '') + '</div>' +
+    '<div class="lg-ft"><span>' + LI.shield + 'Secure sign-in</span><button type="button" data-alt>Use the team key instead</button></div></form></div></div>';
+  const f = $('form', app), er = $('.lg-err', f), go = $('.lg-go', f);
+  let mode = 'pw';
+  try { const last = localStorage.getItem('el_console_email'); if (last) f.email.value = last; } catch (e) {}
+  setTimeout(() => (f.email.value ? f.pw : f.email).focus(), 50);
+  $('[data-eye]', f).onclick = () => { const t = f.pw.type === 'password'; f.pw.type = t ? 'text' : 'password'; $('[data-eye]', f).setAttribute('aria-label', t ? 'Hide password' : 'Show password'); };
+  $('[data-alt]', f).onclick = () => {
+    mode = mode === 'pw' ? 'tk' : 'pw';
+    $('[data-pw]', f).hidden = mode !== 'pw'; $('[data-tk]', f).hidden = mode !== 'tk';
+    $('[data-alt]', f).textContent = mode === 'pw' ? 'Use the team key instead' : 'Use your email and password';
+    $('.s', f).textContent = mode === 'pw' ? 'Sign in to the Easyleads console with your team account.' : 'For setting up team accounts. Enter the team key.';
+    er.hidden = true; (mode === 'pw' ? f.email : f.tk).focus();
+  };
+  const fail = m => { const e2 = $('.lg-err'); if (e2) { e2.hidden = false; e2.textContent = m; } };
   f.addEventListener('submit', async e => {
-    e.preventDefault();
-    const er = $('.err', f); er.hidden = true;
-    KEY = $('input[type=password]', f).value.trim();
+    e.preventDefault(); er.hidden = true;
+    const email = f.email.value.trim(), pw = f.pw.value, tk = f.tk.value.trim();
+    if (mode === 'pw' && (!email || !pw)) return fail('Enter your email and password.');
+    if (mode === 'tk' && !tk) return fail('Enter the team key.');
+    go.disabled = true;
     try {
-      const data = await stage('Signing you in', ['Checking the team key', 'Opening the console', 'Loading your clients'], () => fetchAll(), 'Welcome back');
-      try { ($('input[type=checkbox]', f).checked ? localStorage : sessionStorage).setItem(KEYS, KEY); } catch (e2) {}
+      const data = await stage('Signing you in', [mode === 'pw' ? 'Checking your account' : 'Checking the team key', 'Opening the console', 'Loading your clients'], async () => {
+        if (mode === 'pw') {
+          const j = await fetch(API, { method: 'POST', body: JSON.stringify({ action: 'teamLogin', email, password: pw }) }).then(r => r.json());
+          if (!j || j.error || !j.token) throw new Error((j && j.error) || 'Couldn’t sign in. Try again.');
+          KEY = j.token; ME = { email: j.email, name: j.name };
+        } else { KEY = tk; ME = null; }
+        return fetchAll();
+      }, ME && ME.name ? 'Welcome back, ' + ME.name.split(' ')[0] : 'Welcome back');
+      try { localStorage.setItem(KEYS, KEY); if (ME) { localStorage.setItem(MEK, JSON.stringify(ME)); localStorage.setItem('el_console_email', ME.email); } } catch (e2) {}
+      markActive(true);
       shell(); apply(data);
-    } catch (err) { KEY = ''; er.hidden = false; er.textContent = err.message; }
+    } catch (err) { KEY = ''; ME = null; go.disabled = false; fail(err.message); }
   });
+}
+
+/* Team accounts: who can sign in to this console. */
+async function teamPanel() {
+  const m = modal('<h2>Team accounts</h2><p class="s">Everyone who can sign in to this console with an email and password. Anyone inactive for 5 minutes is signed out.</p><div class="tm" data-tl><div class="sk" style="height:64px"></div></div><div class="err" hidden></div><div class="mf"><button class="btn" data-close>Close</button><button class="btn pri" data-tadd>' + I.plus + 'Add teammate</button></div>', true);
+  const box = $('[data-tl]', m.el), er = $('.err', m.el);
+  $('[data-tadd]', m.el).onclick = () => { m.close(); teamForm(null); };
+  try {
+    const j = await call('teamList'); const me = j.me || (ME && ME.email) || '';
+    box.innerHTML = (j.users || []).length ? j.users.map(u => '<div class="tm-row' + (u.disabled ? ' off' : '') + '" data-e="' + esc(u.email) + '"><div class="tm-av">' + esc(initials(u.name || u.email)) + '</div><div class="tm-tx"><b>' + esc(u.name || u.email) + (u.email === me ? '<span class="tm-tag">You</span>' : '') + (u.disabled ? '<span class="tm-tag">Off</span>' : '') + '</b><small>' + esc(u.email) + ' · ' + (u.last ? 'signed in ' + since(u.last) : 'never signed in') + '</small></div>' +
+      '<button class="btn sm" data-ta="edit">' + I.edit + 'Edit</button>' + (u.email === me ? '' : '<button class="btn sm ghost icon" data-ta="toggle" title="' + (u.disabled ? 'Turn back on' : 'Turn off') + '">' + I.power + '</button><button class="btn sm ghost icon" data-ta="del" title="Delete">' + I.trash + '</button>') + '</div>').join('')
+      : '<div class="tm-empty">No team accounts yet. Add one for each teammate, starting with yourself.</div>';
+    $$('[data-ta]', box).forEach(b => b.onclick = async () => {
+      const u = j.users.filter(x => x.email === b.closest('[data-e]').dataset.e)[0], a = b.dataset.ta;
+      if (a === 'edit') { m.close(); return teamForm(u); }
+      try {
+        if (a === 'toggle') { await call('teamSave', { orig: u.email, email: u.email, name: u.name, disabled: !u.disabled }); toast(u.disabled ? 'Account turned back on' : 'Account turned off'); }
+        if (a === 'del') { m.close(); if (!(await confirmBox('Delete ' + (u.name || u.email) + '’s account?', 'They won’t be able to sign in to the console any more.', 'Delete account'))) return teamPanel(); await call('teamDelete', { email: u.email }); toast('Account deleted'); return teamPanel(); }
+        m.close(); teamPanel();
+      } catch (err) { er.hidden = false; er.textContent = err.message; }
+    });
+  } catch (err) { box.innerHTML = ''; er.hidden = false; er.textContent = err.message; }
+}
+function teamForm(u) {
+  const m = modal('<h2>' + (u ? 'Edit teammate' : 'Add teammate') + '</h2><p class="s">' + (u ? esc(u.email) : 'They sign in to this console with this email and password.') + '</p><form>' +
+    '<label class="f">Name</label><input class="in" name="name" value="' + esc(u ? u.name : '') + '">' +
+    '<label class="f">Email</label><input class="in" name="email" type="email" required value="' + esc(u ? u.email : '') + '">' +
+    '<label class="f">' + (u ? 'New password <small>leave empty to keep the current one</small>' : 'Password <small>at least 8 characters</small>') + '</label><div class="row" style="flex-wrap:nowrap"><input class="in" name="password" type="password" autocomplete="new-password"' + (u ? '' : ' required') + '><button type="button" class="btn sm" data-show>' + I.eye + 'Show</button></div>' +
+    '<div class="err" hidden></div><div class="mf"><button type="button" class="btn" data-close>Cancel</button><button class="btn pri">' + (u ? 'Save' : 'Add teammate') + '</button></div></form>');
+  const f = $('form', m.el), er = $('.err', f);
+  $('[data-show]', f).onclick = () => { f.password.type = f.password.type === 'password' ? 'text' : 'password'; };
+  f.onsubmit = async e => {
+    e.preventDefault();
+    const body = { orig: u ? u.email : '', email: f.email.value.trim(), name: f.name.value.trim(), disabled: u ? !!u.disabled : false };
+    if (f.password.value) body.password = f.password.value;
+    if (body.password && body.password.length < 8) { er.hidden = false; er.textContent = 'Use a password of at least 8 characters.'; return; }
+    m.close();
+    try {
+      await stage(u ? 'Saving the account' : 'Adding the teammate', u ? ['Updating the account', 'Saving'] : ['Creating the account', 'Securing the password', 'Saving'], () => call('teamSave', body), u ? 'Account saved' : 'Teammate added');
+      teamPanel();
+    } catch (err) { teamForm(u); }
+  };
 }
 
 /* ---------- console ---------- */
@@ -577,13 +740,14 @@ function apply(data) {
 async function refresh() { apply(await fetchAll()); }
 function shell() {
   app.innerHTML = '<div class="top"><a class="brand" href="#" data-home><img src="' + WORDMARK + '" alt="Easyleads"></a><div class="sub">Client console<small>Team</small></div><div class="sp"></div>' +
-    '<span class="live"><i></i>Live</span><button class="btn sm ghost" data-out>' + I.out + 'Sign out</button></div>' +
+    '<span class="live"><i></i>Live</span>' + (ME ? '<span class="who"><b>' + esc(initials(ME.name || ME.email)) + '</b>' + esc(ME.name || ME.email) + '</span>' : '') + '<button class="btn sm ghost" data-team>' + I.user + 'Team</button><button class="btn sm ghost" data-out>' + I.out + 'Sign out</button></div>' +
     '<main><div class="hero"><div><div class="eyebrow"><i></i>Client console</div><h1>Your clients</h1><p>Connect an Easyleads account or a website once, then give each client a login to their own read-only dashboard.</p></div>' +
     '<div class="acts"><button class="btn pri" data-new>' + I.plus + 'New client</button><button class="btn" data-login>' + I.user + 'New login</button><button class="btn" data-copy>' + I.link + 'Copy login link</button><button class="btn" data-recheck>' + I.refresh + 'Re-check all</button></div></div>' +
     '<div class="stats" data-stats>' + ['Easyleads accounts', 'Website clients', 'Client logins', 'Active this week', 'Need data access'].map((l, k) => '<div class="stat' + (k === 4 ? ' warn' : '') + '"><div class="l"><i></i>' + l + '</div><div class="v" data-sv="' + k + '">0</div></div>').join('') + '</div>' +
     '<div class="bar"><div class="search">' + I.search + '<input placeholder="Find a client by name or website" data-q></div><div class="seg" data-seg><span class="pill"></span><button data-f="all" class="on">All</button><button data-f="el">Easyleads</button><button data-f="site">Website</button><button data-f="nologin">No login</button><button data-f="access">Needs access</button></div></div>' +
     '<div class="grid" data-grid>' + '<div class="sk"></div>'.repeat(6) + '</div></main>';
   $('[data-out]').onclick = () => { toast('Signed out'); signOut(); };
+  $('[data-team]').onclick = () => teamPanel();
   $('[data-home]').onclick = e => { e.preventDefault(); window.scrollTo({ top: 0 }); };
   $('[data-new]').onclick = () => clientForm();
   $('[data-login]').onclick = () => userForm(null);
@@ -1052,7 +1216,7 @@ async function userAct(a, u) {
 if (!API) { app.innerHTML = '<div class="splash"><div class="signbox">This console isn’t set up yet.</div></div>'; return; }
 if (!KEY) { signIn(); return; }
 app.innerHTML = '<div class="splash"><div class="boot">' + orb() + '<span>Loading your clients…</span></div></div>';
-fetchAll().then(d => { shell(); apply(d); }).catch(err => { if (err.auth) signOut(); else { signIn(); const er = $('.err'); if (er) { er.hidden = false; er.textContent = err.message; } } });
+fetchAll().then(d => { shell(); apply(d); }).catch(err => { if (err.auth) signOut(); else signIn(err.message); });
 })();
 </script>
 </body>
