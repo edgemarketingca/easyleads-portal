@@ -723,6 +723,13 @@ function parseWhen(v) {
   v = String(v || '').trim(); if (!v) return 0;
   if (/^\d{10}$/.test(v)) return Number(v) * 1000;
   if (/^\d{13}$/.test(v)) return Number(v);
+  /* year first: 2026-05-21 13:48, 2026/05/21 at 01:48:01pm */
+  const y4 = v.match(/^(\d{4})[\/.-](\d{1,2})[\/.-](\d{1,2})(?:[ ,T]+(?:at\s+)?(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([ap]\.?m\.?)?)?/i);
+  if (y4) {
+    let h = +(y4[4] || 0);
+    if (y4[7]) { const pm = /p/i.test(y4[7]); if (pm && h < 12) h += 12; if (!pm && h === 12) h = 0; }
+    return new Date(+y4[1], +y4[2] - 1, +y4[3], h, +(y4[5] || 0), +(y4[6] || 0)).getTime();
+  }
   let m = v.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})(?:[ ,T]+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([ap]\.?m\.?)?)?/i);
   if (m) {
     let a = +m[1], b = +m[2], y = +m[3]; if (y < 100) y += 2000;
@@ -785,7 +792,7 @@ function importForm(c) {
     try {
       await stage('Importing ' + fmtN(rows.length) + ' leads', ['Reading the file', 'Matching the columns', 'Skipping anything already imported', 'Adding them to ' + c.name + '’s dashboard'], async () => {
         for (const p of parts) { const j = await call('elImportLeads', { domain: c.domain, rows: p }); added += j.added || 0; skipped += j.skipped || 0; }
-      }, fmtN(added) + ' leads imported');
+      }, 'Import finished');
       toast(fmtN(added) + ' imported' + (skipped ? ' · ' + fmtN(skipped) + ' already there' : ''));
     } catch (err) {}
   };
