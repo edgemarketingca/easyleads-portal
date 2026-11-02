@@ -1274,50 +1274,71 @@ function catalog(dash){
 /* ---------- bell (forms) and phone (calls) ---------- */
 const seenKey = k => 'el_seen_' + k + '_' + S.domain;
 const feed = {forms: null, calls: null};
+/* One notification is read once it is opened; "Mark all read" reads them all. */
+const readKey = k => 'el_read_' + k + '_' + S.domain;
+const nid = x => String(x.id || (x.at + '|' + (x.email || x.phone || x.from || x.name || '')));
+const readSet = k => new Set(ls.get(readKey(k), []));
+const isNew = (k, x, seen, rd) => !!seen && x.at > seen && !rd.has(nid(x)) && !(k === 'calls' && x.dir === 'outbound');
+function markRead(k, x){
+  const rd = readSet(k); rd.add(nid(x));
+  const seen = ls.get(seenKey(k), 0);
+  feed[k] && feed[k].then(j => { const keep = [...rd].filter(id => j.rows.some(r => nid(r) === id && r.at > seen)); ls.set(readKey(k), keep.slice(-300)); badge(k, j); }).catch(() => {});
+}
+function badge(k, j){
+  const seen = ls.get(seenKey(k), 0), rd = readSet(k);
+  const n = j.rows.filter(x => isNew(k, x, seen, rd)).length;
+  const b = app.querySelector(k === 'forms' ? '[data-bellc]' : '[data-phonec]');
+  if (!b) return;
+  b.hidden = !n; b.textContent = n > 99 ? '99+' : n; b.parentNode.classList.toggle('ring', !!n);
+}
 function bellCheck(){
   ['forms', 'calls'].forEach(k => {
     const spin = app.querySelector(k === 'forms' ? '[data-bells]' : '[data-phones]');
     feed[k] = get(k, '30').then(j => {
-      const seen = ls.get(seenKey(k), 0);
-      const rows = k === 'calls' ? j.rows.filter(c => c.dir !== 'outbound') : j.rows;
-      const n = rows.filter(x => x.at > seen).length;
-      const b = app.querySelector(k === 'forms' ? '[data-bellc]' : '[data-phonec]');
-      if (!seen) ls.set(seenKey(k), Date.now());
-      if (b && seen){ b.hidden = !n; b.textContent = n > 99 ? '99+' : n; if (n) b.parentNode.classList.add('ring'); }
+      if (!ls.get(seenKey(k), 0)) ls.set(seenKey(k), Date.now());
+      badge(k, j);
       return j;
     }).finally(() => { if (spin) spin.remove(); });
     feed[k].catch(() => {});
   });
 }
 async function feedPop(k){
+  const open = document.querySelector('[data-pop="' + k + '"]');
   closePops();
+  if (open) return;                    /* a second click on the icon closes it */
   const anchor = app.querySelector(k === 'forms' ? '[data-bell]' : '[data-phone]').parentNode;
-  const pop = document.createElement('div'); pop.className = 'pop'; pop.dataset.pop = 1;
+  const pop = document.createElement('div'); pop.className = 'pop'; pop.dataset.pop = k;
   pop.innerHTML = '<h4>' + (k === 'forms' ? 'Form submissions' : 'Calls') + '<button class="tb" type="button" data-read>Mark all read</button></h4><div class="list">' + SK.list(4) + '</div><div class="pfoot">Last 30 days</div>';
   anchor.appendChild(pop);
   pop.addEventListener('click', e => e.stopPropagation());
-  const seen = ls.get(seenKey(k), 0);
+  const seen = ls.get(seenKey(k), 0), rd = readSet(k);
   try{
     const j = await (feed[k] || get(k, '30'));
     if (!pop.isConnected) return;
     const rows = j.rows.slice(0, 30), list = pop.querySelector('.list');
     list.innerHTML = rows.length ? rows.map((x, i) => {
-      if (k === 'forms') return rowHtml({i, cls: x.at > seen ? 'new' : '', title: x.name || x.email || 'New submission', sub: esc(x.form) + (cityOf(x) ? ' · ' + esc(cityOf(x)) : ''), right: esc(when(x.at))});
+      if (k === 'forms') return rowHtml({i, cls: isNew(k, x, seen, rd) ? 'new' : '', title: x.name || x.email || 'New submission', sub: esc(x.form) + (cityOf(x) ? ' · ' + esc(cityOf(x)) : ''), right: esc(when(x.at))});
       const st = callState(x);
-      if (x.tap) return rowHtml({i, cls: x.at > seen ? 'new' : '', title: x.ads ? 'Call from an ad' : 'Call from the website', sub: esc(x.page || '/'), icon: ic('phone', 15), bg: x.ads ? '#eda100' : T.calls, right: esc(when(x.at))});
-      return rowHtml({i, cls: x.at > seen && x.dir !== 'outbound' ? 'new' : '', title: x.name || (x.dir === 'outbound' ? x.to : x.from) || 'Unknown caller', sub: st.label + (x.dur ? ' · ' + dur(x.dur) : ''), icon: ic(st.k === 'missed' ? 'missed' : x.dir === 'outbound' ? 'out' : 'in', 15),
+      if (x.tap) return rowHtml({i, cls: isNew(k, x, seen, rd) ? 'new' : '', title: x.ads ? 'Call from an ad' : 'Call from the website', sub: esc(x.page || '/'), icon: ic('phone', 15), bg: x.ads ? '#eda100' : T.calls, right: esc(when(x.at))});
+      return rowHtml({i, cls: isNew(k, x, seen, rd) ? 'new' : '', title: x.name || (x.dir === 'outbound' ? x.to : x.from) || 'Unknown caller', sub: st.label + (x.dur ? ' · ' + dur(x.dur) : ''), icon: ic(st.k === 'missed' ? 'missed' : x.dir === 'outbound' ? 'out' : 'in', 15),
         bg: st.k === 'missed' ? '#e0413a' : st.k === 'vm' ? '#d9820b' : T.calls, right: esc(when(x.at))});
     }).join('') : '<div class="empty" style="margin:6px">' + (k === 'forms' ? 'No form submissions in the last 30 days.' : 'No calls in the last 30 days.') + '</div>';
-    list.querySelectorAll('.row').forEach(el => el.addEventListener('click', () => (k === 'forms' ? openSubmission : openCall)(rows[Number(el.dataset.i)])));
+    list.querySelectorAll('.row').forEach(el => el.addEventListener('click', () => {
+      const x = rows[Number(el.dataset.i)];
+      markRead(k, x); closePops();
+      (k === 'forms' ? openSubmission : openCall)(x);
+    }));
   }catch(e){ if (pop.isConnected) pop.querySelector('.list').innerHTML = errHtml(e); }
   pop.querySelector('[data-read]').addEventListener('click', () => {
-    ls.set(seenKey(k), Date.now()); closePops();
+    ls.set(seenKey(k), Date.now()); ls.set(readKey(k), []); closePops();
     const b = app.querySelector(k === 'forms' ? '[data-bellc]' : '[data-phonec]'); if (b){ b.hidden = true; b.parentNode.classList.remove('ring'); }
   });
 }
 function meMenu(){
+  const open = document.querySelector('[data-pop="me"]');
   closePops();
-  const m = document.createElement('div'); m.className = 'menu'; m.dataset.pop = 1;
+  if (open) return;
+  const m = document.createElement('div'); m.className = 'menu'; m.dataset.pop = 'me';
   m.innerHTML = '<div class="who"><b>' + esc(S.me.user.name || 'Your account') + '</b>' + esc(S.me.user.email) + '</div>' +
     (canEdit() ? '<button type="button" data-reset>' + ic('reset', 16) + 'Reset dashboards to the default</button>' : '') + '<button type="button" data-out>' + ic('out2', 16) + (S.preview ? 'Close preview' : 'Sign out') + '</button>';
   app.querySelector('[data-me]').parentNode.appendChild(m);
