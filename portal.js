@@ -450,7 +450,7 @@ function drawNearCity(h, D, it){
 }
 /* ----- lead marks: Done / Pending / Spam, one per person, kept on the tracker ----- */
 const MARKS = {done: ['Done', '#0f9d6b', 'check'], pending: ['Pending', '#d9820b', 'clock'], spam: ['Spam', '#e0413a', 'x']};
-const myMarkName = () => S.me && S.me.edge ? 'Easyleads team' : (S.me && S.me.user.name) || '';
+const myMarkName = () => S.me && S.me.edge ? (S.me.edgeName || 'Easyleads team') : (S.me && S.me.user.name) || '';
 function marksFor(domain){
   S.marks = S.marks || {};
   const c = S.marks[domain];
@@ -481,9 +481,9 @@ function markMenu(btn, r, M, onDone){
     const s = b.dataset.s; closePops();
     const before = (M[r.id] || []).slice();
     const others = before.filter(x => x.name !== mine);
-    M[r.id] = s === 'none' ? others : others.concat({s, by: S.me && S.me.edge ? 'EM' : initials(mine || S.me.user.email), name: mine, t: Date.now()});
+    M[r.id] = s === 'none' ? others : others.concat({s, by: S.me && S.me.edge && !S.me.edgeName ? 'EM' : initials(mine || S.me.user.email), name: mine, t: Date.now()});
     onDone();
-    try{ const j = await api('portalMark', {session: S.session, domain: S.domain, id: r.id, s}); if (j.error) throw new Error(j.error); M[r.id] = j.marks || []; onDone(); }
+    try{ const j = await api('portalMark', {session: S.session, domain: S.domain, id: r.id, s}); if (j.error) throw new Error(j.error); M[r.id] = j.marks || []; onDone(); teamFetch(); }
     catch(e){ M[r.id] = before; onDone(); toast('Couldn’t save that mark: ' + e.message); }
   }));
 }
@@ -560,7 +560,7 @@ function drawInbox(h, D, it){
     '<div class="ib-stat"><div class="l">Top city' + ic('pin', 16) + '</div><div class="v" title="' + esc(top ? top.k : '') + '">' + esc(top ? top.k : '—') + '</div><div class="n">' + (top ? pct(top.n, rows.length) + ' of submissions' : 'no city given yet') + '</div></div>' +
     '<div class="ib-stat"><div class="l">Latest' + ic('cal', 16) + '</div><div class="v">' + esc(latest ? relDay(latest.at) : '—') + '</div><div class="n">' + esc(latest ? fullDate(latest.at) : 'no submissions yet') + '</div></div></div>' +
     '<div class="ib-tools"><label class="search">' + ic('search', 17) + '<input type="search" data-q placeholder="Search names, emails, companies, cities, messages…" value="' + esc(st.q) + '"><kbd>/</kbd></label>' +
-    '<button class="btn" type="button" data-sort>' + (st.sort === 'new' ? 'Newest first' : 'Oldest first') + '</button><button class="btn" type="button" data-export>' + ic('dl', 15) + 'Export</button></div>' +
+    '<button class="btn ib-act" type="button" data-act><span class="ia-av" data-iaav></span>' + ic('clock', 15) + 'Activity<em data-iac></em></button><button class="btn" type="button" data-sort>' + (st.sort === 'new' ? 'Newest first' : 'Oldest first') + '</button><button class="btn" type="button" data-export>' + ic('dl', 15) + 'Export</button></div>' +
     '<div class="ib-filters" data-chips></div>' +
     '<div class="ib-body"><aside class="ib-side" data-side></aside><div><div class="ib-count" data-count></div><div class="ib-list" data-list></div></div></div></div>';
   const $ = s => h.querySelector(s);
@@ -595,11 +595,12 @@ function drawInbox(h, D, it){
       return '<div class="ibrow"><button class="card" type="button" data-i="' + i + '"><div class="av" style="background:' + hue(nm) + '">' + esc(initials(nm)) + '</div><div class="cb"><div class="ch"><b>' + esc(nm) + (function(){ const k = personKey(r), n = k && P[k] ? P[k].length : 0; return n > 1 ? '<span class="pp-badge" data-pk="' + esc(k) + '" title="This person has sent ' + n + ' submissions in total. Click to see them all.">' + ic('users', 12) + n + ' submissions</span>' : ''; })() + '</b><time>' + esc(fullDate(r.at)) + '</time></div>' +
         '<div class="cc">' + esc([r.email, r.phone].filter(Boolean).join(' · ') || r.company || '—') + '</div>' + (r.message ? '<div class="cm">' + esc(r.message) + '</div>' : '') +
         '<div class="tags"><span class="tag" title="' + esc(r.form) + '"><i style="background:#1d7cf2"></i>' + esc(formLabel(r.form)) + '</span>' + (city ? '<span class="tag loc">' + ic('pin', 12) + esc(city) + '</span>' : '') +
-        (g !== 'Not recorded' ? '<span class="tag"><i style="background:' + chColor(g) + '"></i>' + esc(r.channel) + '</span>' : '') + '</div></div></button>' +
+        (g !== 'Not recorded' ? '<span class="tag"><i style="background:' + chColor(g) + '"></i>' + esc(r.channel) + '</span>' : '') + '</div><div class="ib-seen" data-seen="' + esc(r.id) + '"></div></div></button>' +
         '<div class="mk" data-mki="' + i + '">' + marksHtml(M[r.id], r.id) + '</div></div>';
     }).join('') + (list.length > limit ? '<button class="more" type="button" data-more>Show more · ' + fmt(list.length - limit) + ' left</button>' : '')
       : '<div class="empty">' + (rows.length ? 'No submissions match these filters.' : 'No form submissions in this period yet.') + '</div>';
-    $('[data-list]').querySelectorAll('.card').forEach(el => el.addEventListener('click', e => { const pb = e.target.closest('[data-pk]'); if (pb){ e.stopPropagation(); openPerson(P[pb.dataset.pk]); return; } openSubmission(list[Number(el.dataset.i)]); }));
+    $('[data-list]').querySelectorAll('.card').forEach(el => el.addEventListener('click', e => { const pb = e.target.closest('[data-pk]'); if (pb){ e.stopPropagation(); openPerson(P[pb.dataset.pk]); return; } const r0 = list[Number(el.dataset.i)]; openSubmission(r0); leadSeen(r0); }));
+    ibTeam(h);
     fitList();
     $('[data-list]').querySelectorAll('[data-mki]').forEach(box => box.addEventListener('click', e => {
       const b = e.target.closest('[data-mk]'); if (!b) return;
@@ -644,10 +645,17 @@ function drawInbox(h, D, it){
     h.querySelectorAll('[data-mki]').forEach(box => { const b = box.querySelector('[data-mk]'); if (b) box.innerHTML = marksHtml(M[b.dataset.mk], b.dataset.mk); });
   };
   document.addEventListener('el-marks', onMk);
+  /* Shared activity: who opened and marked what, live for everyone. */
+  h.classList.add('ia-host');
+  h.__leads = {}; (D.forms.all || rows).forEach(r => { if (r.id) h.__leads[r.id] = r; });
+  $('[data-act]').addEventListener('click', e => { e.stopPropagation(); ibActPanel(h); });
+  const onTm = e => { if (!h.isConnected){ document.removeEventListener('el-team', onTm); return; } if (e.detail.domain === dom) ibTeam(h); };
+  document.addEventListener('el-team', onTm);
   /* Everyone's full history, then the badges and how many had been in touch before. */
   formsHistory().then(all => {
     if (!h.isConnected || S.domain !== dom) return;
     P = peopleOf(all.concat(D.forms.all));
+    all.forEach(r => { if (r.id && !h.__leads[r.id]) h.__leads[r.id] = r; });
     const keys = [...new Set(rows.map(personKey).filter(Boolean))];
     const back = keys.filter(k => P[k] && P[k].some(x => x.at < Math.min(...rows.filter(r => personKey(r) === k).map(r => r.at)))).length;
     const n = h.querySelector('[data-ppn]'); if (n) n.textContent = back ? back + ' had been in touch before' : 'different senders';
@@ -1534,6 +1542,133 @@ async function feedPop(k){
     const b = app.querySelector(k === 'forms' ? '[data-bellc]' : '[data-phonec]'); if (b){ b.hidden = true; b.parentNode.classList.remove('ring'); }
   });
 }
+/* ---------- Lead inbox: shared, live activity ----------
+   Opening a lead is recorded (once every 5 minutes per person and lead) next to the marks. Every
+   open dashboard gets the team's activity every few seconds: who is here, who opened which lead and
+   who marked what. Each lead shows who opened it, and the inbox's Activity panel shows the history. */
+const actMe = () => myMarkName() || (S.me && S.me.user && S.me.user.email) || 'You';
+const actClock = t => new Date(t).toLocaleTimeString('en-CA', {hour: 'numeric', minute: '2-digit'});
+function leadSeen(r){
+  if (!r || !r.id || !S.session) return;
+  const d = TEAM.dom === S.domain && TEAM.data, nm = actMe();
+  if (d && d.acts){
+    const last = d.acts.find(a => a.s === 'open' && a.id === r.id && a.name === nm);
+    if (!last || Date.now() - last.t > 300000){
+      d.acts.unshift({t: Date.now(), id: r.id, s: 'open', name: nm, by: S.me.edge && !S.me.edgeName ? 'EM' : initials(nm)});
+      document.dispatchEvent(new CustomEvent('el-team', {detail: {domain: S.domain}}));
+    }
+  }
+  api('portalSeen', {session: S.session, domain: S.domain, id: r.id}).catch(() => {});
+}
+const actVerb = (a, lead) => a.s === 'open' ? 'opened <b>' + esc(lead) + '</b>'
+  : MARKS[a.s] ? 'marked <b>' + esc(lead) + '</b> as <span class="ia-chip" style="--c:' + MARKS[a.s][1] + '">' + ic(MARKS[a.s][2], 11) + MARKS[a.s][0] + '</span>'
+  : 'removed their mark on <b>' + esc(lead) + '</b>';
+function ibTeam(h){
+  const d = TEAM.dom === S.domain && TEAM.data, acts = d ? d.acts || [] : null, me = actMe();
+  if (acts){
+    const by = {};
+    acts.forEach(a => { if (a.s !== 'open') return; const l = by[a.id] = by[a.id] || []; if (!l.some(x => x.name === a.name)) l.push(a); });
+    h.querySelectorAll('[data-seen]').forEach(el => {
+      const l = by[el.dataset.seen] || [];
+      el.innerHTML = l.length ? '<span class="ib-eye">' + ic('eye', 12) + '</span><span class="ib-sv">' + l.slice(0, 3).map(a => '<i style="background:' + hue(a.name) + '">' + esc(a.by) + '</i>').join('') + '</span><span>Opened by ' + esc(l[0].name === me ? 'you' : l[0].name.split(' ')[0]) + (l.length > 1 ? ' +' + (l.length - 1) : '') + ' · ' + esc(ago(l[0].t)) + '</span>' : '';
+      el.title = l.length ? 'Opened by ' + l.map(a => (a.name === me ? 'you' : a.name) + ' (' + ago(a.t) + ')').join(', ') : '';
+    });
+  }
+  const b = h.querySelector('[data-act]');
+  if (b && d){
+    const on = d.people.filter(p => p.on && !p.me);
+    b.querySelector('[data-iaav]').innerHTML = on.slice(0, 3).map(p => '<i style="background:' + hue(p.name || p.email) + '">' + esc(p.by) + '</i>').join('');
+    b.classList.toggle('live', on.length > 0);
+    b.title = on.length ? on.map(p => p.name || p.email).join(', ') + (on.length === 1 ? ' is' : ' are') + ' here now · see who opened and marked what' : 'Who opened and marked what in this inbox';
+    const since = ls.get('el_ia_seen_' + S.domain, 0) || Date.now() - 864e5;
+    const n = h.querySelector('.ia-panel') ? 0 : (acts || []).filter(a => a.t > since && a.name !== me).length;
+    b.querySelector('[data-iac]').textContent = n ? (n > 99 ? '99+' : n) : '';
+  }
+  const pn = h.querySelector('.ia-panel'); if (pn && pn.redraw) pn.redraw();
+}
+function ibActPanel(h){
+  const old = h.querySelector('.ia-panel'); if (old){ old.close(); return; }
+  const st = {f: 'all', who: ''}, shown = new Set();
+  let first = true;
+  const p = document.createElement('div'); p.className = 'ia-panel'; p.setAttribute('role', 'dialog'); p.setAttribute('aria-label', 'Inbox activity');
+  h.appendChild(p);
+  p.addEventListener('click', e => e.stopPropagation());
+  const onKey = e => { if (e.key === 'Escape' && !document.querySelector('.drawer-back,.modal-back')) p.close(); };
+  const tick = setInterval(() => {
+    if (!p.isConnected) return clearInterval(tick);
+    const u = p.querySelector('[data-upd]'); if (!u) return;
+    const s = TEAM.got ? Math.max(0, Math.round((Date.now() - TEAM.got) / 1000)) : null;
+    u.textContent = s == null ? 'Connecting…' : s < 3 ? 'Updated just now' : 'Updated ' + s + ' s ago';
+  }, 1000);
+  p.close = () => { p.classList.remove('in'); document.removeEventListener('keydown', onKey); clearInterval(tick); setTimeout(() => p.remove(), 260); const b = h.querySelector('[data-act]'); if (b) b.classList.remove('on'); };
+  document.addEventListener('keydown', onKey);
+  p.redraw = () => {
+    const d = TEAM.dom === S.domain && TEAM.data, acts = d ? d.acts || [] : null, me = actMe(), L = h.__leads || {};
+    ls.set('el_ia_seen_' + S.domain, Date.now());
+    const sc = p.querySelector('.ia-tl'), top = sc ? sc.scrollTop : 0;
+    const names = acts ? [...new Set(acts.map(a => a.name))] : [];
+    const list = acts ? acts.filter(a => (st.f === 'all' || (st.f === 'open' ? a.s === 'open' : a.s !== 'open')) && (!st.who || a.name === st.who)).slice(0, 150) : [];
+    const on = d ? d.people.filter(x => x.on) : [];
+    let day = '', tl = '';
+    list.forEach((a, i) => {
+      const dk = new Date(a.t).toDateString();
+      if (dk !== day){ day = dk; const rd = relDay(a.t); tl += '<div class="ia-day">' + esc(rd.charAt(0).toUpperCase() + rd.slice(1)) + '</div>'; }
+      const r = L[a.id], lead = r ? (r.name || r.email || r.phone || 'a lead') : 'a lead', key = a.t + '|' + a.id + '|' + a.s + '|' + a.name, isNew = !first && !shown.has(key);
+      shown.add(key);
+      const M_ = MARKS[a.s], c = a.s === 'open' ? '#6366f1' : M_ ? M_[1] : '#94a3b8', icn = a.s === 'open' ? 'eye' : M_ ? M_[2] : 'x';
+      tl += '<div class="ia-it' + (isNew ? ' new' : '') + (r ? '' : ' nolead') + '" data-ix="' + i + '"><div class="ia-av" style="background:' + hue(a.name) + ';--c:' + c + '">' + esc(a.by) + '<b>' + ic(icn, 10) + '</b></div>' +
+        '<div class="ia-tx"><strong>' + esc(a.name === me ? 'You' : a.name) + '</strong> ' + actVerb(a, lead) + '<small title="' + esc(fullDate(a.t)) + '">' + esc(ago(a.t)) + ' · ' + esc(actClock(a.t)) + '</small></div></div>';
+    });
+    first = false;
+    p.innerHTML = '<div class="ia-hd"><div class="ia-ic">' + ic('clock', 18) + '</div><div><h4>Inbox activity</h4><p><span class="ia-dot"></span>Live · everyone on this dashboard sees the same</p></div><button type="button" class="ia-x" data-x aria-label="Close">' + ic('x', 16) + '</button></div>' +
+      '<div class="ia-here' + (on.length ? '' : ' none') + '">' + (on.length ? '<span class="ia-stk">' + on.slice(0, 5).map(x => '<i style="background:' + hue(x.name || x.email) + '" title="' + esc(x.name || x.email) + '">' + esc(x.by) + '</i>').join('') + '</span><span><b>' + esc(on.map(x => x.me ? 'You' : (x.name || x.email || 'Teammate').split(' ')[0]).join(', ')) + '</b>' + (on.length === 1 && !on[0].me ? ' is' : ' are') + ' here now</span>' : '<span>No one is on this dashboard right now</span>') + '</div>' +
+      '<div class="ia-f"><div class="ia-seg">' + [['all', 'All'], ['open', 'Opened'], ['mark', 'Marked']].map(([k, l]) => '<button type="button" data-f="' + k + '"' + (st.f === k ? ' class="on"' : '') + '>' + l + '</button>').join('') + '</div>' +
+      (names.length > 1 ? '<div class="ia-pp">' + names.slice(0, 8).map(n => '<button type="button" data-w="' + esc(n) + '" title="' + esc(n === me ? 'Only you' : 'Only ' + n) + '" style="background:' + hue(n) + '"' + (st.who === n ? ' class="on"' : '') + '>' + esc(initials(n)) + '</button>').join('') + '</div>' : '') + '</div>' +
+      '<div class="ia-tl">' + (acts ? (tl || '<div class="ia-empty"><span>' + ic('clock', 22) + '</span>' + (acts.length ? 'Nothing matches this filter.' : 'No activity yet. When anyone opens or marks a lead in this inbox, it shows here for everyone.') + '</div>') : '<div class="ia-empty"><span class="spin"></span>Loading the activity…</div>') + '</div>' +
+      '<div class="ia-ft"><span class="ia-dot"></span><span data-upd>' + (TEAM.got ? 'Updated just now' : 'Connecting…') + '</span><span class="ia-n">' + (acts ? fmt(acts.length) + ' event' + (acts.length === 1 ? '' : 's') : '') + '</span></div>';
+    const sc2 = p.querySelector('.ia-tl'); if (sc2) sc2.scrollTop = top;
+    p.querySelector('[data-x]').addEventListener('click', () => p.close());
+    p.querySelectorAll('[data-f]').forEach(x => x.addEventListener('click', () => { st.f = x.dataset.f; p.redraw(); }));
+    p.querySelectorAll('[data-w]').forEach(x => x.addEventListener('click', () => { st.who = st.who === x.dataset.w ? '' : x.dataset.w; p.redraw(); }));
+    p.querySelectorAll('[data-ix]').forEach(el => el.addEventListener('click', () => { const r = L[list[Number(el.dataset.ix)].id]; if (r){ openSubmission(r); leadSeen(r); } }));
+  };
+  p.redraw();
+  const b = h.querySelector('[data-act]'); if (b){ b.classList.add('on'); const c = b.querySelector('[data-iac]'); if (c) c.textContent = ''; }
+  requestAnimationFrame(() => requestAnimationFrame(() => p.classList.add('in')));
+  teamFetch();
+}
+(function(){ if (document.getElementById('ia-css')) return; const st = document.createElement('style'); st.id = 'ia-css';
+  st.textContent = '.ia-host{position:relative}' +
+    '.btn.ib-act{gap:8px}.btn.ib-act.on{border-color:#c7d2fe;background:#eef2ff;color:#3730a3}' +
+    '.ib-act .ia-av{display:inline-flex}.ib-act .ia-av:empty{display:none}.ib-act .ia-av i{width:22px;height:22px;border-radius:50%;color:#fff;font-style:normal;font-size:9.5px;font-weight:700;display:grid;place-items:center;border:2px solid #fff;margin-left:-7px;position:relative}.ib-act .ia-av i:first-child{margin-left:0}' +
+    '.ib-act .ia-av i:after{content:"";position:absolute;right:-2px;bottom:-2px;width:7px;height:7px;border-radius:50%;background:#10b981;border:1.5px solid #fff}' +
+    '.ib-act em{font-style:normal;min-width:18px;height:18px;padding:0 5px;box-sizing:border-box;border-radius:9px;background:#0086ff;color:#fff;font-size:11px;font-weight:700;display:inline-grid;place-items:center;animation:iaPop .35s cubic-bezier(.2,.8,.2,1)}.ib-act em:empty{display:none}' +
+    '.ia-dot{width:8px;height:8px;border-radius:50%;background:#10b981;flex:none;animation:iaPulse 2s infinite}' +
+    '@keyframes iaPulse{0%{box-shadow:0 0 0 0 rgba(16,185,129,.55)}70%{box-shadow:0 0 0 7px rgba(16,185,129,0)}100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}}@keyframes iaPop{0%{transform:scale(.4)}100%{transform:scale(1)}}' +
+    '.ib-seen{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:11.5px;color:#7a8396;line-height:1}.ib-seen:empty{display:none}.ib-eye{color:#6366f1;display:grid}' +
+    '.ib-sv{display:inline-flex}.ib-sv i{width:18px;height:18px;border-radius:50%;color:#fff;font-style:normal;font-size:8px;font-weight:700;display:grid;place-items:center;border:1.5px solid #fff;margin-left:-5px}.ib-sv i:first-child{margin-left:0}' +
+    '.ia-panel{position:absolute;top:0;right:0;bottom:0;width:min(440px,100%);z-index:20;background:rgba(255,255,255,.98);-webkit-backdrop-filter:blur(16px) saturate(1.6);backdrop-filter:blur(16px) saturate(1.6);border:1px solid rgba(11,12,15,.08);border-radius:18px;box-shadow:-24px 0 60px -28px rgba(11,12,15,.38),0 2px 6px rgba(11,12,15,.04);display:flex;flex-direction:column;overflow:hidden;transform:translateX(28px);opacity:0;transition:transform .34s cubic-bezier(.2,.8,.2,1),opacity .22s}.ia-panel.in{transform:none;opacity:1}' +
+    '.ia-hd{display:flex;align-items:flex-start;gap:12px;padding:18px 18px 12px}.ia-ic{width:40px;height:40px;border-radius:13px;background:linear-gradient(135deg,#eef2ff,#e0f2fe);color:#4f46e5;display:grid;place-items:center;flex:none;box-shadow:inset 0 0 0 1px rgba(79,70,229,.1)}' +
+    '.ia-hd h4{margin:1px 0 0;font-size:16px;letter-spacing:-.015em;font-weight:700}.ia-hd p{margin:3px 0 0;font-size:12.5px;color:#7a8396;display:flex;align-items:center;gap:7px}' +
+    '.ia-x{margin-left:auto;border:0;background:#f3f4f7;width:32px;height:32px;border-radius:10px;cursor:pointer;color:#5b6273;display:grid;place-items:center;flex:none;transition:background .15s,color .15s}.ia-x:hover{background:#e9ebf0;color:#0b0c0f}' +
+    '.ia-here{margin:0 18px 12px;padding:10px 12px;border-radius:14px;background:linear-gradient(180deg,#f4fbf8,#eef8f3);border:1px solid #d7eee3;display:flex;align-items:center;gap:10px;font-size:12.5px;color:#2f5f4b}.ia-here.none{background:#f7f8fa;border-color:#eceef2;color:#8a92a3}.ia-here b{font-weight:650}' +
+    '.ia-stk{display:inline-flex;flex:none}.ia-stk i{width:26px;height:26px;border-radius:50%;color:#fff;font-style:normal;font-size:10px;font-weight:700;display:grid;place-items:center;border:2px solid #fff;margin-left:-8px;position:relative}.ia-stk i:first-child{margin-left:0}.ia-stk i:after{content:"";position:absolute;right:-2px;bottom:-2px;width:8px;height:8px;border-radius:50%;background:#10b981;border:2px solid #fff}' +
+    '.ia-f{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:0 18px 10px;flex-wrap:wrap}' +
+    '.ia-seg{display:inline-flex;background:#f1f2f5;border-radius:11px;padding:3px}.ia-seg button{border:0;background:none;padding:6px 12px;border-radius:8px;font:inherit;font-size:12.5px;font-weight:600;color:#677083;cursor:pointer;transition:background .15s,color .15s,box-shadow .15s}.ia-seg button:hover{color:#0b0c0f}.ia-seg button.on{background:#fff;color:#0b0c0f;box-shadow:0 1px 2px rgba(11,12,15,.1),0 0 0 1px rgba(11,12,15,.03)}' +
+    '.ia-pp{display:inline-flex;gap:5px}.ia-pp button{border:0;padding:0;width:26px;height:26px;border-radius:50%;color:#fff;font:inherit;font-size:9.5px;font-weight:700;cursor:pointer;opacity:.5;transition:opacity .15s,transform .15s}.ia-pp button:hover{opacity:1;transform:translateY(-1px)}.ia-pp button.on{opacity:1;outline:2px solid #0086ff;outline-offset:2px}' +
+    '.ia-tl{flex:1;overflow:auto;padding:0 14px 12px;overscroll-behavior:contain}' +
+    '.ia-day{position:sticky;top:0;z-index:1;background:linear-gradient(180deg,rgba(255,255,255,.98) 70%,rgba(255,255,255,0));font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9aa2b1;padding:12px 6px 6px}' +
+    '.ia-it{position:relative;display:flex;gap:12px;padding:9px 8px;border-radius:12px;cursor:pointer;transition:background .15s}.ia-it:hover{background:#f5f7fa}.ia-it.nolead{cursor:default}' +
+    '.ia-it:before{content:"";position:absolute;left:25px;top:46px;bottom:-10px;width:2px;border-radius:2px;background:#eef0f4}.ia-it:last-child:before,.ia-it:has(+ .ia-day):before{display:none}' +
+    '.ia-av{position:relative;flex:none;width:36px;height:36px;border-radius:50%;color:#fff;font-size:12px;font-weight:700;display:grid;place-items:center;box-shadow:0 2px 6px -2px rgba(11,12,15,.25)}' +
+    '.ia-av b{position:absolute;right:-4px;bottom:-4px;width:19px;height:19px;border-radius:50%;background:var(--c);color:#fff;display:grid;place-items:center;border:2px solid #fff}' +
+    '.ia-tx{flex:1;min-width:0;font-size:13px;line-height:1.45;color:#4b5263;padding-top:1px}.ia-tx strong{color:#0b0c0f;font-weight:650}.ia-tx b{color:#0b0c0f;font-weight:600}.ia-tx small{display:block;color:#9aa2b1;font-size:11.5px;margin-top:2px}' +
+    '.ia-chip{display:inline-flex;align-items:center;gap:4px;padding:1px 8px 1px 6px;border-radius:99px;font-size:11.5px;font-weight:650;color:var(--c);background:color-mix(in srgb,var(--c) 12%,#fff);vertical-align:1px}' +
+    '.ia-it.new{animation:iaNew 1.8s ease}@keyframes iaNew{0%{background:#e6f0ff;transform:translateY(-6px);opacity:0}20%{opacity:1;transform:none}100%{background:transparent}}' +
+    '.ia-empty{padding:44px 24px;text-align:center;color:#9aa2b1;font-size:13px;line-height:1.5;display:flex;flex-direction:column;align-items:center;gap:10px}.ia-empty>span:first-child{width:46px;height:46px;border-radius:14px;background:#f3f4f7;display:grid;place-items:center;color:#b1b8c4}' +
+    '.ia-ft{padding:10px 18px;border-top:1px solid #f1f2f5;font-size:11.5px;color:#9aa2b1;display:flex;align-items:center;gap:8px}.ia-ft .ia-n{margin-left:auto}';
+  document.head.appendChild(st);
+})();
 /* ---------- the team: who is on this dashboard, and who marked what ----------
    Every open dashboard checks in every 30 seconds (less often in a background tab). The answer
    carries everyone's latest marks, so a mark made by one person reaches the others' inboxes, and
@@ -1545,10 +1680,11 @@ function teamFetch(){
   if (!S.me || !dom || !S.session) return Promise.resolve();
   return api('portalTeam', {session: S.session, domain: dom}).then(j => {
     if (!j || j.error || !j.people || S.domain !== dom) return;
-    TEAM.data = j; TEAM.dom = dom;
+    TEAM.data = j; TEAM.dom = dom; TEAM.got = Date.now();
     S.marks = S.marks || {}; S.marks[dom] = {at: Date.now(), p: Promise.resolve(j.marks || {})};
     document.dispatchEvent(new CustomEvent('el-marks', {detail: {domain: dom, marks: j.marks || {}}}));
     teamPaint();
+    document.dispatchEvent(new CustomEvent('el-team', {detail: {domain: dom}}));
   }).catch(() => {});
 }
 function teamStart(){
@@ -1556,7 +1692,7 @@ function teamStart(){
   teamPaint();
   if (!TEAM.iv){
     let last = 0;
-    TEAM.iv = setInterval(() => { if (Date.now() - last > (document.hidden ? 120000 : 29000)){ last = Date.now(); teamFetch(); } }, 5000);
+    TEAM.iv = setInterval(() => { if (Date.now() - last > (document.hidden ? 120000 : 8000)){ last = Date.now(); teamFetch(); } }, 5000);
     document.addEventListener('visibilitychange', () => { if (!document.hidden){ last = Date.now(); teamFetch(); } });
     last = Date.now();
   }
@@ -1590,10 +1726,10 @@ function teamPop(){
         (p.on ? 'Active now' : p.seen ? 'Last active ' + esc(ago(p.seen)) : 'Hasn’t signed in yet') + '</small></div></div>').join('') + '</div>' +
       '<div class="tm-h">Recent activity</div><div class="list tm-acts">' + (acts.length ? acts.map((a, i) => {
         const r = byId && byId[a.id], lead = r ? (r.name || r.email || r.phone || 'a lead') : byId ? 'a lead' : '…', M_ = MARKS[a.s];
-        return '<div class="row tm-a" data-a="' + i + '"><div class="av" style="background:' + (M_ ? M_[1] : '#94a3b8') + '">' + ic(M_ ? M_[2] : 'x', 14) + '</div><div class="t"><b>' + esc(a.name || 'Someone') + '</b><small>' +
-          (M_ ? 'marked <span>' + esc(lead) + '</span> as ' + M_[0] : 'removed their mark on <span>' + esc(lead) + '</span>') + '</small></div><div class="r">' + esc(ago(a.t)) + '</div></div>';
+        return '<div class="row tm-a" data-a="' + i + '"><div class="av" style="background:' + (a.s === 'open' ? '#6366f1' : M_ ? M_[1] : '#94a3b8') + '">' + ic(a.s === 'open' ? 'eye' : M_ ? M_[2] : 'x', 14) + '</div><div class="t"><b>' + esc(a.name || 'Someone') + '</b><small>' +
+          (a.s === 'open' ? 'opened <span>' + esc(lead) + '</span>' : M_ ? 'marked <span>' + esc(lead) + '</span> as ' + M_[0] : 'removed their mark on <span>' + esc(lead) + '</span>') + '</small></div><div class="r">' + esc(ago(a.t)) + '</div></div>';
       }).join('') : '<div class="empty" style="margin:8px">No marks yet. When anyone marks a lead Done, Pending or Spam, it shows here.</div>') + '</div>' +
-      '<div class="pfoot">Updates every 30 seconds</div>';
+      '<div class="pfoot">Live · updates every few seconds</div>';
     pop.querySelectorAll('[data-a]').forEach(el => el.addEventListener('click', () => { const r = byId && byId[acts[Number(el.dataset.a)].id]; if (r){ closePops(); openSubmission(r); } }));
   };
   pop.redraw();
@@ -1715,7 +1851,7 @@ function startWith(session, me){
   renderApp();
 }
 /* Fresh numbers every few minutes while the page is open. */
-setInterval(() => { if (S.me && !document.hidden && !S.editing && !document.querySelector('.drawer-back,.modal-back,[data-pop]') && !(document.activeElement && /input/i.test(document.activeElement.tagName))){ S.cache = {}; renderApp(); } }, 5 * 60000);
+setInterval(() => { if (S.me && !document.hidden && !S.editing && !document.querySelector('.drawer-back,.modal-back,[data-pop],.ia-panel') && !(document.activeElement && /input/i.test(document.activeElement.tagName))){ S.cache = {}; renderApp(); } }, 5 * 60000);
 
 (async function boot(){
   /* "Open as client" from the EDGE tool passes a short session in the address. */
