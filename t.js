@@ -21,9 +21,11 @@
     try { ref = document.referrer; host = ref ? new URL(ref).hostname.replace(/^www\./, '') : ''; } catch (e) {}
     if (host && host === location.hostname.replace(/^www\./, '')) host = '';
     var m = (q.utm_medium || '').toLowerCase(), so = (q.utm_source || '').toLowerCase(), ch;
+    var AI = /chatgpt|openai|perplexity|gemini\.google|bard\.google|copilot\.microsoft|claude\.ai|meta\.ai|deepseek|grok\.com|mistral\.ai|you\.com|phind/;
     if (q.gclid || q.gbraid || q.wbraid || q.msclkid || /cpc|ppc|paid/.test(m)) ch = 'Paid search';
     else if (q.fbclid || /social/.test(m)) ch = 'Social';
     else if (/e-?mail|newsletter/.test(m)) ch = 'Email';
+    else if (AI.test(host) || AI.test(so)) ch = 'AI assistant';     /* ChatGPT, Perplexity, Gemini, Copilot, Claude... */
     else if (so) ch = 'Campaign';
     else if (/(^|\.)(google|bing|yahoo|duckduckgo|ecosia|baidu|yandex)\./.test(host)) ch = 'Organic search';
     else if (/facebook|instagram|linkedin|twitter|^t\.co$|tiktok|pinterest|youtube|reddit/.test(host)) ch = 'Social';
