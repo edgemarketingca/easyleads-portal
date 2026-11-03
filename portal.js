@@ -244,6 +244,10 @@ const W = {
   ai_pages: {g: 'AI visibility', t: 'Pages AI assistants send people to', d: 'Where visitors from AI assistants land on the site.', ic: 'book', tint: '#0891b2', c: 6, sk: 'list', needs: ['ai'], ai: true, draw: drawAiPages},
   ai_leads: {g: 'AI visibility', t: 'Leads from AI assistants', d: 'Form leads from people who came from ChatGPT, Perplexity, Gemini, Copilot or Claude.', ic: 'form', tint: '#7c3aed', c: 6, sk: 'list', needs: ['forms'], ai: true, draw: drawAiLeads},
   web_cities: {g: 'Website', t: 'Where visitors are', d: 'Visitors by city, from Google Analytics.', ic: 'pin', tint: T.loc, c: 6, sk: 'list', needs: ['ga'], ga: true, draw: drawWebCities},
+  crm_kpis: {g: 'Clients', t: 'Clients at a glance', d: 'Open pipeline, jobs won, win rate, how fast new leads get a first reply, and follow-ups that are late.', ic: 'bolt', tint: '#0f7a58', c: 12, sk: 'kpis', needs: ['forms'], draw: drawCrmKpis},
+  crm_board: {g: 'Clients', t: 'Client pipeline', d: 'Every person who reached out, as a card: drag them from New lead to Contacted, Quote sent, Booked, Won or Lost. Your whole team sees it live.', ic: 'grid', tint: '#4f46e5', c: 12, sk: 'table', needs: ['forms'], draw: drawCrmBoard},
+  crm_follow: {g: 'Clients', t: 'Follow-ups', d: 'Who to call back today, what is late, and new leads still waiting for a first reply.', ic: 'clock', tint: '#d9820b', c: 12, sk: 'list', needs: ['forms'], draw: drawCrmFollow},
+  crm_clients: {g: 'Clients', t: 'Client list', d: 'One row per person across every form they sent: stage, job value, owner, first and latest request. Export to CSV.', ic: 'users', tint: '#0891b2', c: 12, sk: 'table', needs: ['forms'], draw: drawCrmClients},
   note: {g: 'Text', t: 'Heading & summary', d: 'A heading and a short write-up. Attach it to a widget and it explains that widget’s numbers in plain words.', ic: 'spark', tint: '#475569', c: 12, sk: 'note', needs: [], draw: drawNote}
 };
 /* Where this business's data comes from: its Easyleads account, or the EDGE tracker (website forms, phone taps). */
@@ -524,6 +528,7 @@ function peopleOf(rows){
 }
 function openPerson(list){
   if (!list || !list.length) return;
+  const ck = personKey(list[0]); if (ck) return openClient(ck, list);
   const f = list[0], nm = (list.find(x => x.name) || f).name || f.email || f.phone || 'Person';
   const forms = groupBy(list, x => formLabel(x.form)).map(x => x.k + (x.n > 1 ? ' (' + x.n + ')' : '')).join(', ');
   const b = drawer(nm, [['Submissions', fmt(list.length)], ['First one', fullDate(list[list.length - 1].at)], ['Latest', fullDate(f.at)], ['Email', (list.find(x => x.email) || {}).email], ['Phone', (list.find(x => x.phone) || {}).phone], ['Company', (list.find(x => x.company) || {}).company], ['City', cityOf(list.find(x => cityOf(x)) || f)], ['Forms used', forms]],
@@ -1169,7 +1174,7 @@ function noteEditor(it, dash, done){
 function drawer(title, pairs, extra, o){
   o = o || {};
   const b = document.createElement('div'); b.className = 'drawer-back';
-  b.innerHTML = '<div class="drawer" role="dialog" aria-modal="true"><div style="display:flex;justify-content:space-between;align-items:center"><span class="pill">' + ic('lock', 12) + ' Read only</span><button class="iconbtn" type="button" data-x aria-label="Close">' + ic('x') + '</button></div>' +
+  b.innerHTML = '<div class="drawer" role="dialog" aria-modal="true"><div style="display:flex;justify-content:space-between;align-items:center">' + (o.rw ? '<span class="pill blue">' + ic('users', 12) + ' Shared with your team · syncs live</span>' : '<span class="pill">' + ic('lock', 12) + ' Read only</span>') + '<button class="iconbtn" type="button" data-x aria-label="Close">' + ic('x') + '</button></div>' +
     '<div class="dh">' + (o.icon ? '<div class="av" style="background:' + (o.tint || T.email) + ';border-radius:16px">' + ic(o.icon, 22) + '</div>' : '<div class="av" style="background:' + hue(title) + '">' + esc(initials(title)) + '</div>') + '<div style="min-width:0"><h3>' + esc(title) + '</h3>' + (o.sub ? '<div class="dsub">' + o.sub + '</div>' : '') + '</div></div>' +
     (extra || '') + (pairs.length ? '<dl class="kv">' : '<dl class="kv" hidden>') + pairs.filter(p => p[1] != null && p[1] !== '').map(p => '<dt>' + esc(p[0]) + '</dt><dd>' + esc(p[1]) + '</dd>').join('') + '</dl></div>';
   document.body.appendChild(b);
@@ -1217,27 +1222,42 @@ function layout(){
     if (!L.dashes.some(d => d.items.some(i => i.t === 'people'))){ const sales = L.dashes.find(d => /sales/i.test(d.name)); if (sales) sales.items.push(item('people')); else L.dashes.push({id: uid(), name: 'Contacts', items: [item('people')]}); }
     L.v = LAYOUT_V; setTimeout(saveLayout, 0);
   }
-  /* A business with Google Analytics connected gets a Website tab, once. */
-  if (gaOn() && !S.layout.dashes.some(d => d.items.some(i => W[i.t] && W[i.t].ga && i.t !== 'kpis'))){
+  /* Tabs added by themselves (Website, Google Search, AI visibility, Clients) are added once, and
+     remembered in the layout, so a tab someone deletes stays deleted. */
+  const A = S.layout.auto = S.layout.auto || {}, A0 = JSON.stringify(A);
+  const hasAny = f => S.layout.dashes.some(d => d.items.some(i => W[i.t] && W[i.t][f]));
+  const hasT = re => S.layout.dashes.some(d => d.items.some(i => re.test(i.t)));
+  if (!A.web && hasT(/^web_/)) A.web = 1;
+  if (!A.gsc && hasAny('gsc')) A.gsc = 1;
+  if (!A.ai && hasAny('ai')) A.ai = 1;
+  if (!A.crm && hasT(/^crm_/)) A.crm = 1;
+  if (gaOn() && !A.web){
+    A.web = 1;
     S.layout.dashes.splice(Math.min(1, S.layout.dashes.length), 0, {id: uid(), name: 'Website', items: [
       item('note', 12, {title: 'Your website', about: 'web_kpis', text: 'Visits, visitors and pages from Google Analytics, and how many visits turned into leads, compared with the period before.'}),
       item('web_kpis'), item('web_trend', 8, {h: 420}), item('web_sources', 4, {h: 420}), item('web_pages', 6, {h: 440}), item('web_cities', 6, {h: 440})]});
-    if (canEdit()) setTimeout(saveLayout, 0);
   }
   /* A business with Search Console gets a Google Search tab, and one with AI visibility an AI visibility tab, once each. */
-  const hasAny = f => S.layout.dashes.some(d => d.items.some(i => W[i.t] && W[i.t][f]));
-  if (gscOn() && !hasAny('gsc')){
+  if (gscOn() && !A.gsc){
+    A.gsc = 1;
     S.layout.dashes.push({id: uid(), name: 'Google Search', items: [
       item('note', 12, {title: 'How you show up on Google', about: 'sc_kpis', text: 'Clicks, impressions and positions from Google Search Console. Google reports these two to three days late.'}),
       item('sc_kpis'), item('sc_trend', 8, {h: 420}), item('sc_devices', 4, {h: 420}), item('sc_queries', 12, {h: 520}), item('sc_almost', 6, {h: 460}), item('sc_pages', 6, {h: 460})]});
-    if (canEdit()) setTimeout(saveLayout, 0);
   }
-  if (aiOn() && !hasAny('ai')){
+  if (aiOn() && !A.ai){
+    A.ai = 1;
     S.layout.dashes.push({id: uid(), name: 'AI visibility', items: [
       item('note', 12, {title: 'How AI assistants see you', about: 'ai_kpis', text: 'People who found the business through ChatGPT, Perplexity, Gemini, Copilot or Claude, and how often Google’s AI Overviews mention it. AI assistants don’t pass on what the person asked, only that they came from them.'}),
       item('ai_kpis'), item('ai_trend', 8, {h: 420}), item('ai_assistants', 4, {h: 420}), item('ai_overviews', 12, {h: 480}), item('ai_pages', 6, {h: 440}), item('ai_leads', 6, {h: 440})]});
-    if (canEdit()) setTimeout(saveLayout, 0);
   }
+  /* Every business gets a Clients tab (a shared CRM of everyone who reached out), once. */
+  if (!A.crm){
+    A.crm = 1;
+    S.layout.dashes.splice(Math.min(2, S.layout.dashes.length), 0, {id: uid(), name: 'Clients', items: [
+      item('note', 12, {title: 'Your clients', about: 'crm_board', text: 'Everyone who reached out, on any form. Move them through the stages, set a value, an owner and a follow-up date, and leave notes; your whole team sees it live.'}),
+      item('crm_kpis'), item('crm_board', 12), item('crm_follow', 12), item('crm_clients', 12)]});
+  }
+  if (JSON.stringify(A) !== A0 && canEdit()) setTimeout(saveLayout, 0);
   /* Widgets made for one client appear on their dashboard by themselves (hidden everywhere else). */
   Object.keys(W).filter(t => W[t].only && W[t].only.indexOf(S.domain) > -1).forEach(t => {
     const L = S.layout;
@@ -1320,7 +1340,9 @@ function wireTop(){
   const L = layout(), dash = curDash();
   const aw = q('[data-addw]'); if (aw) aw.addEventListener('click', () => catalog(dash));
   const rn = q('[data-rename]'); if (rn) rn.addEventListener('click', () => { const n = prompt('Dashboard name:', dash.name); if (n && n.trim()){ dash.name = n.trim().slice(0, 40); saveLayout(); renderApp(); } });
-  const dd = q('[data-deldash]'); if (dd) dd.addEventListener('click', () => { if (!confirm('Delete the “' + dash.name + '” dashboard?')) return; L.dashes.splice(L.dashes.indexOf(dash), 1); S.dash = 0; saveLayout(); renderApp(); });
+  const delDash = d => { if (L.dashes.length < 2){ toast('Keep at least one dashboard.'); return; } if (!confirm('Delete the “' + d.name + '” dashboard?')) return; const at = L.dashes.indexOf(d); L.dashes.splice(at, 1); S.dash = Math.max(0, Math.min(S.dash > at ? S.dash - 1 : S.dash, L.dashes.length - 1)); saveLayout(); renderApp(); toast('Dashboard deleted'); };
+  const dd = q('[data-deldash]'); if (dd) dd.addEventListener('click', () => delDash(dash));
+  if (arranging() && L.dashes.length > 1) app.querySelectorAll('.tab[data-dash]').forEach(b => { const x = document.createElement('span'); x.className = 'tab-x'; x.title = 'Delete this dashboard'; x.innerHTML = ic('x', 11); x.addEventListener('click', e => { e.stopPropagation(); delDash(L.dashes[Number(b.dataset.dash)]); }); b.appendChild(x); });
   q('[data-bell]').addEventListener('click', e => { e.stopPropagation(); feedPop('forms'); });
   q('[data-team]').addEventListener('click', e => { e.stopPropagation(); teamPop(); });
   q('[data-phone]').addEventListener('click', e => { e.stopPropagation(); feedPop('calls'); });
@@ -1852,6 +1874,388 @@ function startWith(session, me){
 }
 /* Fresh numbers every few minutes while the page is open. */
 setInterval(() => { if (S.me && !document.hidden && !S.editing && !document.querySelector('.drawer-back,.modal-back,[data-pop],.ia-panel') && !(document.activeElement && /input/i.test(document.activeElement.tagName))){ S.cache = {}; renderApp(); } }, 5 * 60000);
+
+/* ---------- clients (CRM): one shared record for every person who reached out ----------
+   A client is a person across every form they ever sent (same key as the inbox: email, else
+   phone, else name), on Easyleads, WordPress or Concrete sites alike. Their stage, job value,
+   owner, follow-up date and notes live on the tracker, shared with everyone on the dashboard;
+   a change made by one person reaches the others within seconds (the team check-in carries a
+   "CRM changed at" stamp, and only then is the CRM fetched again). */
+const STAGES = [['new', 'New lead', '#1d7cf2', 'spark'], ['contacted', 'Contacted', '#7c3aed', 'reply'], ['quoted', 'Quote sent', '#d9820b', 'form'], ['booked', 'Booked', '#0891b2', 'cal'], ['won', 'Won', '#0f9d6b', 'check'], ['lost', 'Lost', '#8a93a3', 'x']];
+const STG = {}; STAGES.forEach(s => { STG[s[0]] = s; });
+const OPEN_ST = ['contacted', 'quoted', 'booked'];
+const CRM = {};
+function crmFor(dom){
+  dom = dom || S.domain;
+  const c = CRM[dom];
+  if (c && c.p && Date.now() - c.at < 60000) return c.p;
+  const box = CRM[dom] = CRM[dom] || {};
+  const p = api('portalCrm', {session: S.session, domain: dom}).then(j => { if (j.error) throw new Error(j.error); box.data = j.crm || {}; box.v = Math.max(box.v || 0, j.at || 0); return box.data; });
+  box.at = Date.now(); box.p = p;
+  p.catch(() => { if (box.p === p) box.p = null; });
+  return p;
+}
+const crmEmit = dom => document.dispatchEvent(new CustomEvent('el-crm', {detail: {domain: dom}}));
+/* The team check-in says when the CRM last changed; fetch it again only then. */
+document.addEventListener('el-team', e => {
+  const dom = e.detail.domain, at = TEAM.data && TEAM.dom === dom ? Number(TEAM.data.crmAt) || 0 : 0, box = CRM[dom];
+  if (!box || !box.data || !at || at <= (box.v || 0)) return;
+  box.v = at; box.at = 0; crmFor(dom).then(() => crmEmit(dom)).catch(() => {});
+});
+const crmMe = () => myMarkName() || (S.me && S.me.user.email) || 'You';
+async function crmSave(key, set){
+  const dom = S.domain;
+  const data = await crmFor(dom).catch(() => null) || ((CRM[dom] = CRM[dom] || {}).data = (CRM[dom].data || {}));
+  const before = data[key] ? JSON.parse(JSON.stringify(data[key])) : null;
+  const rec = data[key] = data[key] || {notes: [], log: []};
+  const name = crmMe(), by = S.me && S.me.edge && !S.me.edgeName ? 'EM' : initials(name), t = Date.now();
+  Object.keys(set).forEach(f => {
+    const v = set[f];
+    if (f === 'note') rec.notes = (rec.notes || []).concat({t, name, by, x: v});
+    else if (f === 'done') rec.due = '';
+    else rec[f] = v;
+    rec.log = (rec.log || []).concat({t, name, by, f, v});
+  });
+  rec.t = t; rec.name = name;
+  crmEmit(dom);
+  try{
+    const j = await api('portalCrmSave', {session: S.session, domain: dom, key, set});
+    if (j.error) throw new Error(j.error);
+    if (j.rec) data[key] = j.rec;
+    if (CRM[dom]) CRM[dom].v = Math.max(CRM[dom].v || 0, j.at || 0);
+    crmEmit(dom);
+    return true;
+  }catch(e){
+    if (before) data[key] = before; else delete data[key];
+    crmEmit(dom); toast('Couldn’t save that: ' + e.message);
+    return false;
+  }
+}
+/* Every client, built from all-time form leads (plus any newer rows the widget already has). */
+async function crmClients(extra){
+  const dom = S.domain;
+  const [rows, crm, M] = await Promise.all([formsHistory().catch(() => []), crmFor(dom).catch(() => ({})), marksFor(dom).catch(() => ({}))]);
+  const P = peopleOf((extra || []).concat(rows));
+  return Object.keys(P).map(k => {
+    const list = P[k], f = list[0], first = list[list.length - 1], r = crm[k] || {};
+    const pick = x => (list.find(y => y[x]) || {})[x] || '';
+    const lastStage = (r.log || []).filter(x => x.f === 'stage').pop();
+    return {k, list, name: pick('name') || pick('email') || pick('phone') || 'Someone', email: pick('email'), phone: pick('phone'), company: pick('company'),
+      city: list.map(cityOf).find(Boolean) || '', first: first.at, last: f.at, n: list.length, form: formLabel(f.form), channel: first.channel || '',
+      stage: STG[r.stage] ? r.stage : 'new', staged: !!STG[r.stage], value: Number(r.value) || 0, owner: r.owner || '', due: r.due || '',
+      notes: r.notes || [], log: r.log || [], touched: r.t || 0, stageAt: lastStage ? lastStage.t : 0,
+      spam: list.every(x => markStatus(M, x) === 'Spam'), M};
+  }).filter(c => c.list.length);
+}
+const dueOf = c => {
+  if (!c.due) return null;
+  const a = new Date(); a.setHours(0, 0, 0, 0);
+  const d = Math.round((new Date(c.due + 'T00:00:00').getTime() - a.getTime()) / 864e5);
+  return {d, k: d < 0 ? 'late' : d === 0 ? 'today' : 'soon', label: d < 0 ? (d === -1 ? 'Due yesterday' : Math.abs(d) + ' days late') : d === 0 ? 'Due today' : d === 1 ? 'Tomorrow' : new Date(c.due + 'T00:00:00').toLocaleDateString('en-CA', {month: 'short', day: 'numeric'})};
+};
+const dueChip = c => { const u = dueOf(c); return u ? '<span class="cr-due ' + u.k + '">' + ic('clock', 11) + esc(u.label) + '</span>' : ''; };
+const stagePill = s => '<span class="cr-st" style="--c:' + STG[s][2] + '"><i></i>' + esc(STG[s][1]) + '</span>';
+const waitTxt = ms => ms < 36e5 ? Math.max(1, Math.round(ms / 6e4)) + ' min' : ms < 864e5 ? Math.round(ms / 36e5) + ' h' : Math.round(ms / 864e5) + ' days';
+const crmMatch = (c, q) => !q || [c.name, c.email, c.phone, c.company, c.city, c.owner, c.form].join(' ').toLowerCase().indexOf(q.toLowerCase()) > -1;
+/* Repaint a widget when the CRM changes; wait while someone is typing in it. */
+function crmWire(h, paint){
+  const dom = S.domain;
+  const on = e => {
+    if (!h.isConnected){ document.removeEventListener('el-crm', on); return; }
+    if (e.detail.domain !== dom) return;
+    const a = document.activeElement;
+    if (a && h.contains(a) && /INPUT|TEXTAREA|SELECT/.test(a.tagName)){ a.addEventListener('blur', () => paint(), {once: true}); return; }
+    paint();
+  };
+  document.addEventListener('el-crm', on);
+}
+const crmLoading = n => '<div class="cr-load">' + Array.from({length: n || 4}, (_, i) => '<div class="sk" style="height:' + (i ? 44 : 30) + 'px;border-radius:12px;margin-bottom:8px;opacity:' + (1 - i * .15) + '"></div>').join('') + '</div>';
+const crmErr = e => '<div class="err">' + ic('lock', 22) + '<br><b>Clients couldn’t load</b><br>' + esc(e && e.message || 'Try again in a moment.') + '</div>';
+
+/* ----- Clients at a glance ----- */
+function drawCrmKpis(h, D){
+  h.innerHTML = '<div class="ib-stats">' + SK.kpis(5) + '</div>';
+  const paint = async () => {
+    let C; try{ C = (await crmClients(D.forms && D.forms.rows)).filter(c => !c.spam); }catch(e){ h.innerHTML = crmErr(e); return; }
+    if (!h.isConnected) return;
+    const r = range(), s = r.s, e = r.e + 864e5;
+    const open = C.filter(c => OPEN_ST.indexOf(c.stage) > -1), openV = open.reduce((a, c) => a + c.value, 0);
+    const wonP = C.filter(c => c.stage === 'won' && c.stageAt >= s && c.stageAt < e), wonV = wonP.reduce((a, c) => a + c.value, 0);
+    const won = C.filter(c => c.stage === 'won').length, lost = C.filter(c => c.stage === 'lost').length;
+    const fresh = C.filter(c => c.first >= s && c.first < e);
+    const waits = fresh.map(c => { const x = c.log.find(l => l.f === 'stage' && l.v !== 'new'); return x ? x.t - c.first : null; }).filter(x => x != null && x >= 0).sort((a, b) => a - b);
+    const med = waits.length ? waits[Math.floor(waits.length / 2)] : null;
+    const late = C.filter(c => { const u = dueOf(c); return u && u.k === 'late'; }).length;
+    const waiting = C.filter(c => !c.staged && Date.now() - c.last < 14 * 864e5).length;
+    const repeat = C.filter(c => c.n > 1).length;
+    const tile = (l, icn, v, n, cls) => '<div class="ib-stat' + (cls ? ' ' + cls : '') + '"><div class="l">' + l + ic(icn, 16) + '</div><div class="v">' + v + '</div><div class="n">' + n + '</div></div>';
+    const cnt = {}; C.forEach(c => { if (c.staged || Date.now() - c.last < 90 * 864e5) cnt[c.stage] = (cnt[c.stage] || 0) + 1; });
+    const tot = Object.values(cnt).reduce((a, b) => a + b, 0) || 1;
+    h.innerHTML = '<div class="fade-in"><div class="ib-stats cr-kpis">' +
+      tile('Open pipeline', 'money', money(openV), fmt(open.length) + ' client' + (open.length === 1 ? '' : 's') + ' in progress') +
+      tile('Won this period', 'check', money(wonV), fmt(wonP.length) + ' job' + (wonP.length === 1 ? '' : 's') + ' won') +
+      tile('Win rate', 'target', won + lost ? Math.round(won / (won + lost) * 100) + '%' : '—', won + lost ? fmt(won) + ' won · ' + fmt(lost) + ' lost' : 'mark clients Won or Lost') +
+      tile('First reply', 'reply', med == null ? '—' : waitTxt(med), med == null ? 'move a new lead to Contacted' : 'typical wait for new leads') +
+      tile('Needs attention', 'clock', fmt(late + waiting), fmt(late) + ' late follow-up' + (late === 1 ? '' : 's') + ' · ' + fmt(waiting) + ' not replied', late ? 'cr-hot' : '') +
+      '</div><div class="cr-funnel">' + STAGES.filter(x => cnt[x[0]]).map(x => '<span style="--c:' + x[2] + ';flex:' + cnt[x[0]] + '" title="' + esc(x[1] + ': ' + cnt[x[0]]) + '"></span>').join('') + '</div>' +
+      '<div class="cr-leg">' + STAGES.map(x => '<span><i style="background:' + x[2] + '"></i>' + esc(x[1]) + ' <b>' + fmt(cnt[x[0]] || 0) + '</b></span>').join('') + '<em>' + fmt(repeat) + ' repeat client' + (repeat === 1 ? '' : 's') + ' · ' + fmt(tot) + ' active</em></div></div>';
+  };
+  paint(); crmWire(h, paint);
+}
+
+/* ----- Client pipeline (drag cards between stages) ----- */
+function drawCrmBoard(h, D, it){
+  const st = S.ui[it.id] = S.ui[it.id] || {q: '', mine: false, more: {}};
+  h.innerHTML = '<div class="cr-tools"><label class="search">' + ic('search', 17) + '<input type="search" data-q placeholder="Find a client by name, email, phone, city or owner…" value="' + esc(st.q) + '"></label>' +
+    '<div class="seg cr-seg"><button type="button" data-mine="0"' + (st.mine ? '' : ' class="on"') + '>Everyone</button><button type="button" data-mine="1"' + (st.mine ? ' class="on"' : '') + '>Mine</button></div></div>' +
+    '<div class="cr-board" data-b>' + STAGES.map(x => '<div class="cr-col"><div class="cr-ch"><i style="background:' + x[2] + '"></i>' + esc(x[1]) + '</div>' + crmLoading(3) + '</div>').join('') + '</div>' +
+    '<div class="cr-hint">' + ic('move', 13) + 'Drag a card to move it to another stage. Click it to open the client: notes, job value, owner and follow-up date. Everyone on this dashboard sees changes live.</div>';
+  const B = h.querySelector('[data-b]');
+  let C = [];
+  const qi = h.querySelector('[data-q]');
+  qi.addEventListener('input', () => { st.q = qi.value; render(); });
+  h.querySelectorAll('[data-mine]').forEach(b => b.addEventListener('click', () => { st.mine = b.dataset.mine === '1'; h.querySelectorAll('[data-mine]').forEach(x => x.classList.toggle('on', x === b)); render(); }));
+  const render = () => {
+    const now = Date.now(), me = crmMe();
+    const vis = C.filter(c => !c.spam && crmMatch(c, st.q) && (!st.mine || c.owner === me) &&
+      (c.staged ? (OPEN_ST.indexOf(c.stage) > -1 || c.stage === 'new' || now - (c.stageAt || c.touched) < 120 * 864e5) : now - c.last < 90 * 864e5));
+    B.innerHTML = STAGES.map(x => {
+      const list = vis.filter(c => c.stage === x[0]).sort((a, b) => x[0] === 'new' ? b.last - a.last : (b.stageAt || b.touched) - (a.stageAt || a.touched));
+      const sum = list.reduce((a, c) => a + c.value, 0), cap = st.more[x[0]] ? 400 : 30;
+      return '<div class="cr-col" data-st="' + x[0] + '" style="--c:' + x[2] + '"><div class="cr-ch"><i></i>' + esc(x[1]) + '<b>' + fmt(list.length) + '</b>' + (sum ? '<em>' + money(sum) + '</em>' : '') + '</div><div class="cr-cards">' +
+        (list.length ? list.slice(0, cap).map(c => {
+          const wait = !c.staged && now - c.last;
+          return '<div class="cr-card" draggable="true" data-k="' + esc(c.k) + '"><div class="cc-top"><span class="cc-av" style="background:' + hue(c.name) + '">' + esc(initials(c.name)) + '</span><div class="cc-n"><b>' + esc(c.name) + '</b><small>' + esc(c.company || c.form) + ' · ' + esc(relDay(c.last)) + '</small></div>' + (c.value ? '<em>' + money(c.value) + '</em>' : '') + '</div>' +
+            '<div class="cc-meta">' + (wait ? '<span class="cr-wait ' + (wait < 36e5 ? 'ok' : wait < 864e5 ? 'mid' : 'bad') + '">' + ic('clock', 11) + waitTxt(wait) + ' waiting</span>' : '') + dueChip(c) +
+            (c.n > 1 ? '<span class="cc-tag">' + ic('reset', 11) + c.n + ' requests</span>' : '') + (c.notes.length ? '<span class="cc-tag">' + ic('edit', 11) + c.notes.length + '</span>' : '') +
+            (c.owner ? '<span class="cc-own" title="Owner: ' + esc(c.owner) + '" style="background:' + hue(c.owner) + '">' + esc(initials(c.owner)) + '</span>' : '') + '</div></div>';
+        }).join('') + (list.length > cap ? '<button type="button" class="cr-more" data-more="' + x[0] + '">Show ' + fmt(list.length - cap) + ' more</button>' : '') : '<div class="cr-empty">' + (x[0] === 'new' ? 'No new leads waiting' : 'Drop a client here') + '</div>') +
+        '</div></div>';
+    }).join('');
+    B.querySelectorAll('[data-more]').forEach(b => b.addEventListener('click', () => { st.more[b.dataset.more] = 1; render(); }));
+    B.querySelectorAll('.cr-card').forEach(card => {
+      card.addEventListener('click', () => { const c = C.find(x => x.k === card.dataset.k); if (c) openClient(c.k, c.list); });
+      card.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', card.dataset.k); e.dataTransfer.effectAllowed = 'move'; card.classList.add('drag'); B.classList.add('dragging'); });
+      card.addEventListener('dragend', () => { card.classList.remove('drag'); B.classList.remove('dragging'); B.querySelectorAll('.cr-col.over').forEach(x => x.classList.remove('over')); });
+    });
+    B.querySelectorAll('.cr-col').forEach(col => {
+      col.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; col.classList.add('over'); });
+      col.addEventListener('dragleave', e => { if (!col.contains(e.relatedTarget)) col.classList.remove('over'); });
+      col.addEventListener('drop', async e => {
+        e.preventDefault(); col.classList.remove('over');
+        const k = e.dataTransfer.getData('text/plain'), c = C.find(x => x.k === k), s = col.dataset.st;
+        if (!c || c.stage === s && c.staged) return;
+        const set = {stage: s};
+        if ((s === 'quoted' || s === 'won') && !c.value){ const v = prompt((s === 'won' ? 'Nice! What was the job worth?' : 'What is the quote worth?') + ' (optional, in dollars)', ''); const n = Number(String(v || '').replace(/[^0-9.]/g, '')); if (n > 0) set.value = Math.round(n); }
+        c.stage = s; c.staged = true; c.stageAt = Date.now(); if (set.value) c.value = set.value; render();
+        if (s === 'won') edgeConfetti(col);
+        crmSave(k, set);
+      });
+    });
+  };
+  const paint = async () => { try{ C = await crmClients(D.forms && D.forms.rows); }catch(e){ B.innerHTML = crmErr(e); return; } if (h.isConnected) render(); };
+  paint(); crmWire(h, paint);
+}
+function edgeConfetti(el){
+  const r = el.getBoundingClientRect(), cs = ['#0f9d6b', '#1d7cf2', '#f5b301', '#7c3aed', '#e0413a'];
+  for (let i = 0; i < 26; i++){
+    const p = document.createElement('i'); p.className = 'cr-conf';
+    p.style.cssText = 'left:' + (r.left + r.width / 2) + 'px;top:' + (r.top + 40) + 'px;background:' + cs[i % cs.length];
+    document.body.appendChild(p);
+    const a = Math.random() * Math.PI * 2, d = 60 + Math.random() * 90;
+    p.animate([{transform: 'translate(0,0) rotate(0)', opacity: 1}, {transform: 'translate(' + Math.cos(a) * d + 'px,' + (Math.sin(a) * d + 80) + 'px) rotate(' + (Math.random() * 540) + 'deg)', opacity: 0}], {duration: 900 + Math.random() * 500, easing: 'cubic-bezier(.2,.7,.3,1)'}).onfinish = () => p.remove();
+  }
+}
+
+/* ----- Follow-ups: late, today, coming up, and new leads still waiting for a first reply ----- */
+function drawCrmFollow(h, D){
+  h.innerHTML = crmLoading(5);
+  const paint = async () => {
+    let C; try{ C = (await crmClients(D.forms && D.forms.rows)).filter(c => !c.spam); }catch(e){ h.innerHTML = crmErr(e); return; }
+    if (!h.isConnected) return;
+    const now = Date.now();
+    const withDue = C.filter(c => c.due && c.stage !== 'won' && c.stage !== 'lost').map(c => [c, dueOf(c)]);
+    const late = withDue.filter(x => x[1].k === 'late').sort((a, b) => a[1].d - b[1].d).map(x => x[0]);
+    const today = withDue.filter(x => x[1].k === 'today').map(x => x[0]);
+    const soon = withDue.filter(x => x[1].k === 'soon' && x[1].d <= 14).sort((a, b) => a[1].d - b[1].d).map(x => x[0]);
+    const waiting = C.filter(c => !c.staged && now - c.last < 14 * 864e5).sort((a, b) => a.last - b.last);
+    const row = (c, kind) => '<div class="cr-row" data-k="' + esc(c.k) + '"><span class="cc-av" style="background:' + hue(c.name) + '">' + esc(initials(c.name)) + '</span><div class="cr-rt"><b>' + esc(c.name) + '</b><small>' +
+      (kind === 'wait' ? esc(c.form) + ' · ' + '<span class="cr-wait ' + (now - c.last < 36e5 ? 'ok' : now - c.last < 864e5 ? 'mid' : 'bad') + '">' + waitTxt(now - c.last) + ' waiting</span>'
+        : stagePill(c.stage) + (c.owner ? ' · ' + esc(c.owner) : '') + (c.notes.length ? ' · ' + esc(String(c.notes[c.notes.length - 1].x).slice(0, 60)) : '')) + '</small></div>' +
+      '<div class="cr-ra">' + (kind === 'wait' ? '<button class="btn sm" type="button" data-act="contacted">' + ic('reply', 13) + 'Contacted</button>'
+        : (kind === 'soon' ? dueChip(c) : '') + '<button class="cr-ib" type="button" data-act="snooze" title="Push to tomorrow">+1d</button><button class="cr-ib go" type="button" data-act="done" title="Mark this follow-up done">' + ic('check', 13) + '</button>') + '</div></div>';
+    const sec = (t, icn, list, kind, cls, empty) => '<div class="cr-sec ' + (cls || '') + '"><div class="cr-sh">' + ic(icn, 14) + esc(t) + '<b>' + fmt(list.length) + '</b></div>' + (list.length ? list.slice(0, 12).map(c => row(c, kind)).join('') + (list.length > 12 ? '<div class="cr-moretxt">+ ' + fmt(list.length - 12) + ' more</div>' : '') : '<div class="cr-empty">' + empty + '</div>') + '</div>';
+    h.innerHTML = '<div class="cr-follow fade-in">' +
+      sec('Late', 'clock', late, 'due', 'late', 'Nothing late. Nice.') +
+      sec('Today', 'cal', today, 'due', 'today', 'No follow-ups due today.') +
+      sec('Waiting for a first reply', 'inbox', waiting, 'wait', 'wait', 'Every new lead has been contacted.') +
+      sec('Coming up', 'chev', soon, 'soon', '', 'Set a follow-up date on a client to see it here.') + '</div>';
+    h.querySelectorAll('.cr-row').forEach(r => r.addEventListener('click', e => {
+      const c = C.find(x => x.k === r.dataset.k); if (!c) return;
+      const b = e.target.closest('[data-act]');
+      if (!b){ openClient(c.k, c.list); return; }
+      e.stopPropagation(); r.classList.add('going');
+      const a = b.dataset.act;
+      if (a === 'contacted') crmSave(c.k, {stage: 'contacted'});
+      else if (a === 'done') crmSave(c.k, {done: c.due});
+      else { const t = new Date(); t.setDate(t.getDate() + 1); crmSave(c.k, {due: t.toISOString().slice(0, 10)}); }
+    }));
+  };
+  paint(); crmWire(h, paint);
+}
+
+/* ----- Client list: one row per person, every stage, exportable ----- */
+function drawCrmClients(h, D, it){
+  const st = S.ui[it.id] = S.ui[it.id] || {q: '', st: '', sort: 'last', n: 50};
+  h.innerHTML = '<div class="cr-tools"><label class="search">' + ic('search', 17) + '<input type="search" data-q placeholder="Search clients…" value="' + esc(st.q) + '"></label><button class="btn" type="button" data-csv>' + ic('dl', 15) + 'Export CSV</button></div><div data-chips class="cr-chips"></div><div data-t>' + crmLoading(6) + '</div>';
+  let C = [];
+  const qi = h.querySelector('[data-q]'); qi.addEventListener('input', () => { st.q = qi.value; st.n = 50; render(); });
+  const list = () => C.filter(c => !c.spam && crmMatch(c, st.q) && (!st.st || (st.st === 'repeat' ? c.n > 1 : c.stage === st.st)));
+  const SORTS = {last: (a, b) => b.last - a.last, first: (a, b) => b.first - a.first, value: (a, b) => b.value - a.value, n: (a, b) => b.n - a.n, name: (a, b) => a.name.localeCompare(b.name), stage: (a, b) => STAGES.findIndex(x => x[0] === a.stage) - STAGES.findIndex(x => x[0] === b.stage)};
+  const render = () => {
+    const ok = C.filter(c => !c.spam), cnt = {}; ok.forEach(c => { cnt[c.stage] = (cnt[c.stage] || 0) + 1; });
+    h.querySelector('[data-chips]').innerHTML = [['', 'All', ok.length, '#0b0c0f']].concat(STAGES.map(x => [x[0], x[1], cnt[x[0]] || 0, x[2]]), [['repeat', 'Repeat clients', ok.filter(c => c.n > 1).length, '#4f46e5']])
+      .map(x => '<button type="button" data-st="' + x[0] + '" class="cr-chip' + (st.st === x[0] ? ' on' : '') + '" style="--c:' + x[3] + '">' + esc(x[1]) + '<b>' + fmt(x[2]) + '</b></button>').join('');
+    h.querySelectorAll('[data-st]').forEach(b => b.addEventListener('click', () => { st.st = b.dataset.st; st.n = 50; render(); }));
+    const L = list().sort(SORTS[st.sort] || SORTS.last), th = (k, t, cls) => '<th' + (cls ? ' class="' + cls + '"' : '') + '><button type="button" class="sc-sort' + (st.sort === k ? ' on' : '') + '" data-sort="' + k + '">' + t + '</button></th>';
+    const spam = C.length - ok.length;
+    h.querySelector('[data-t]').innerHTML = L.length ? '<div class="tbl-wrap fade-in"><table class="tbl cr-tbl"><thead><tr>' + th('name', 'Client') + '<th>Contact</th>' + th('stage', 'Stage') + th('value', 'Value', 'num') + '<th>Owner</th>' + th('n', 'Requests', 'num') + th('first', 'First seen', 'num') + th('last', 'Latest', 'num') + '<th>Came from</th></tr></thead><tbody>' +
+      L.slice(0, st.n).map(c => '<tr class="click" data-k="' + esc(c.k) + '"><td><div class="who"><div class="av" style="background:' + hue(c.name) + '">' + esc(initials(c.name)) + '</div><div style="min-width:0"><b>' + esc(c.name) + '</b>' + (c.company || c.city ? '<span class="muted" style="font-size:12px">' + esc([c.company, c.city].filter(Boolean).join(' · ')) + '</span>' : '') + '</div></div></td>' +
+        '<td style="font-size:12.5px">' + esc(c.email || '') + (c.email && c.phone ? '<br>' : '') + '<span class="muted">' + esc(c.phone || (c.email ? '' : '—')) + '</span></td><td>' + stagePill(c.stage) + (dueOf(c) ? '<br>' + dueChip(c) : '') + '</td>' +
+        '<td class="num">' + (c.value ? money(c.value) : '<span class="muted">—</span>') + '</td><td>' + (c.owner ? '<span class="cr-ownc"><i style="background:' + hue(c.owner) + '">' + esc(initials(c.owner)) + '</i>' + esc(c.owner) + '</span>' : '<span class="muted">—</span>') + '</td>' +
+        '<td class="num">' + fmt(c.n) + '</td><td class="num muted">' + esc(relDay(c.first)) + '</td><td class="num muted">' + esc(relDay(c.last)) + '</td><td>' + (c.channel ? '<span class="pill blue">' + esc(c.channel) + '</span>' : '<span class="muted">—</span>') + '</td></tr>').join('') +
+      '</tbody></table></div><div class="pager"><span>' + fmt(Math.min(st.n, L.length)) + ' of ' + fmt(L.length) + ' client' + (L.length === 1 ? '' : 's') + (spam ? ' · ' + fmt(spam) + ' marked spam left out' : '') + '</span><div>' + (L.length > st.n ? '<button class="btn sm" type="button" data-morec>Show more</button>' : '') + '</div></div>'
+      : '<div class="empty">' + (C.length ? 'No clients match.' : 'No clients yet. Everyone who sends a form shows up here.') + '</div>';
+    h.querySelectorAll('[data-sort]').forEach(b => b.addEventListener('click', () => { st.sort = b.dataset.sort; render(); }));
+    const mc = h.querySelector('[data-morec]'); if (mc) mc.addEventListener('click', () => { st.n += 100; render(); });
+    h.querySelectorAll('tr[data-k]').forEach(tr => tr.addEventListener('click', () => { const c = C.find(x => x.k === tr.dataset.k); if (c) openClient(c.k, c.list); }));
+  };
+  h.querySelector('[data-csv]').addEventListener('click', () => {
+    const L = list(), q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+    const csv = [['Name', 'Email', 'Phone', 'Company', 'City', 'Stage', 'Value', 'Owner', 'Follow up', 'Requests', 'First seen', 'Latest', 'Came from', 'Latest note']].concat(L.map(c => [c.name, c.email, c.phone, c.company, c.city, STG[c.stage][1], c.value || '', c.owner, c.due, c.n, iso(c.first), iso(c.last), c.channel, c.notes.length ? c.notes[c.notes.length - 1].x : ''])).map(r => r.map(q).join(',')).join('\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], {type: 'text/csv'})); a.download = 'clients-' + S.domain + '-' + iso(Date.now()) + '.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  });
+  const paint = async () => { try{ C = await crmClients(D.forms && D.forms.rows); }catch(e){ h.querySelector('[data-t]').innerHTML = crmErr(e); return; } if (h.isConnected) render(); };
+  paint(); crmWire(h, paint);
+}
+
+/* ----- The client card: stage, value, owner, follow-up, notes and the whole timeline ----- */
+function openClient(key, list){
+  const f = list[0], pick = x => (list.find(y => y[x]) || {})[x] || '';
+  const nm = pick('name') || pick('email') || pick('phone') || 'Client';
+  const b = drawer(nm, [['Email', pick('email')], ['Phone', pick('phone')], ['Company', pick('company')], ['City', list.map(cityOf).find(Boolean)], ['Requests', fmt(list.length)], ['First request', fullDate(list[list.length - 1].at)], ['Latest', fullDate(f.at)], ['Came from', list[list.length - 1].channel]],
+    '<div class="cr-card-d" data-cr>' + crmLoading(3) + '</div>', {sub: esc([pick('email'), pick('phone')].filter(Boolean).join(' · ')), rw: true});
+  const box = b.querySelector('[data-cr]');
+  let c = null;
+  const owners = () => { const s = new Set(); ((TEAM.data && TEAM.data.people) || []).forEach(p => { if (p.name) s.add(p.name); }); Object.values((CRM[S.domain] || {}).data || {}).forEach(r => { if (r.owner) s.add(r.owner); }); s.add(crmMe()); return [...s]; };
+  const tl = () => {
+    const ev = [];
+    c.list.forEach(r => { ev.push({t: r.at, ic: 'form', col: '#1d7cf2', h: '<b>Sent “' + esc(formLabel(r.form)) + '”</b>' + (r.message ? '<small class="cr-q">' + esc(String(r.message).slice(0, 140)) + '</small>' : ''), r});
+      ((c.M || {})[r.id] || []).forEach(m => ev.push({t: m.t, ic: MARKS[m.s][2], col: MARKS[m.s][1], h: '<b>' + esc(m.name || m.by) + '</b> marked a request <b>' + esc(MARKS[m.s][0]) + '</b>', who: m.name || m.by})); });
+    c.log.forEach(l => {
+      const w = '<b>' + esc(l.name || l.by) + '</b> ';
+      const h = l.f === 'stage' ? w + 'moved them to ' + stagePill(STG[l.v] ? l.v : 'new') : l.f === 'value' ? w + (Number(l.v) ? 'set the job value to <b>' + money(l.v) + '</b>' : 'cleared the job value') : l.f === 'owner' ? w + (l.v ? 'gave this client to <b>' + esc(l.v) + '</b>' : 'removed the owner') :
+        l.f === 'due' ? w + (l.v ? 'set a follow-up for <b>' + esc(new Date(l.v + 'T00:00:00').toLocaleDateString('en-CA', {weekday: 'short', month: 'short', day: 'numeric'})) + '</b>' : 'cleared the follow-up') : l.f === 'done' ? w + 'finished the follow-up' : w + 'added a note';
+      ev.push({t: l.t, ic: l.f === 'stage' ? (STG[l.v] || STG.new)[3] : l.f === 'value' ? 'money' : l.f === 'owner' ? 'users' : l.f === 'note' ? 'edit' : 'clock', col: l.f === 'stage' ? (STG[l.v] || STG.new)[2] : '#64748b', h, who: l.name || l.by});
+    });
+    ev.sort((a, b) => b.t - a.t);
+    return ev.slice(0, 80).map((e, i) => '<div class="cr-ev"' + (e.r ? ' data-sub="' + i + '"' : '') + '><span class="cr-evi" style="--c:' + e.col + '">' + ic(e.ic, 12) + '</span><div>' + e.h + '<small>' + esc(fullDate(e.t)) + ' · ' + esc(ago(e.t)) + '</small></div></div>').join('') || '<div class="cr-empty">Nothing yet.</div>';
+  };
+  const paint = () => {
+    box.innerHTML = '<div class="cr-steps">' + STAGES.map(x => '<button type="button" data-stage="' + x[0] + '" style="--c:' + x[2] + '" class="' + (c.stage === x[0] ? 'on' : '') + '">' + ic(x[3], 13) + esc(x[1]) + '</button>').join('') + '</div>' +
+      (c.spam ? '<div class="cr-note-warn">' + ic('x', 13) + 'Every request from this person was marked Spam, so they’re left out of the pipeline.</div>' : '') +
+      '<div class="cr-fields"><label><span>' + ic('money', 13) + 'Job value</span><input type="number" min="0" step="50" inputmode="numeric" data-f="value" placeholder="$0" value="' + (c.value || '') + '"></label>' +
+      '<label><span>' + ic('users', 13) + 'Owner</span><input data-f="owner" list="cr-owners" placeholder="Who looks after them" value="' + esc(c.owner) + '"><datalist id="cr-owners">' + owners().map(o => '<option value="' + esc(o) + '">').join('') + '</datalist></label>' +
+      '<label><span>' + ic('clock', 13) + 'Follow up on</span><input type="date" data-f="due" value="' + esc(c.due) + '"></label></div>' +
+      '<div class="cr-quick">' + [[1, 'Tomorrow'], [3, 'In 3 days'], [7, 'Next week']].map(x => '<button type="button" data-in="' + x[0] + '">' + x[1] + '</button>').join('') + (c.due ? '<button type="button" data-donef class="go">' + ic('check', 12) + 'Follow-up done</button>' : '') + '</div>' +
+      '<div class="pp-h">' + ic('edit', 14) + 'Team notes</div><div class="cr-notes">' + (c.notes.length ? c.notes.slice().reverse().map(n => '<div class="cr-nt"><span class="cc-av" style="background:' + hue(n.name || n.by) + '">' + esc(n.by || initials(n.name)) + '</span><div><div class="cr-nh"><b>' + esc(n.name || n.by) + '</b><small>' + esc(ago(n.t)) + '</small></div><div class="cr-nx">' + esc(n.x) + '</div></div></div>').join('') : '<div class="cr-empty">No notes yet. What did they ask for? When can you call?</div>') + '</div>' +
+      '<div class="cr-comp"><textarea data-crnote rows="2" placeholder="Add a note for the team… (Ctrl+Enter to save)"></textarea><button class="btn go sm" type="button" data-addnote>' + ic('send', 13) + 'Add note</button></div>' +
+      '<div class="pp-h">' + ic('clock', 14) + 'Timeline</div><div class="cr-tl">' + tl() + '</div>';
+    box.querySelectorAll('[data-stage]').forEach(x => x.addEventListener('click', () => { if (c.stage === x.dataset.stage && c.staged) return; const s = x.dataset.stage, set = {stage: s};
+      if ((s === 'won' || s === 'quoted') && !c.value){ const v = prompt((s === 'won' ? 'Nice! What was the job worth?' : 'What is the quote worth?') + ' (optional, in dollars)', ''); const n = Number(String(v || '').replace(/[^0-9.]/g, '')); if (n > 0) set.value = Math.round(n); }
+      if (s === 'won') edgeConfetti(x); crmSave(key, set); }));
+    box.querySelectorAll('[data-f]').forEach(inp => inp.addEventListener('change', () => {
+      const f2 = inp.dataset.f; let v = inp.value.trim();
+      if (f2 === 'value') v = v === '' ? '' : Math.max(0, Math.round(Number(v) || 0));
+      if (String(v) === String(f2 === 'value' ? (c.value || '') : c[f2] || '')) return;
+      crmSave(key, {[f2]: v});
+    }));
+    box.querySelectorAll('[data-in]').forEach(x => x.addEventListener('click', () => { const t = new Date(); t.setDate(t.getDate() + Number(x.dataset.in)); crmSave(key, {due: t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0')}); }));
+    const df = box.querySelector('[data-donef]'); if (df) df.addEventListener('click', () => crmSave(key, {done: c.due}));
+    const ta = box.querySelector('[data-crnote]'), add = () => { const v = ta.value.trim(); if (!v) return; ta.value = ''; crmSave(key, {note: v.slice(0, 2000)}); };
+    box.querySelector('[data-addnote]').addEventListener('click', add);
+    ta.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); add(); } });
+    box.querySelectorAll('[data-sub]').forEach(el => el.addEventListener('click', () => {
+      const r = tlRows()[Number(el.dataset.sub)]; if (r) openSubmission(r);
+    }));
+  };
+  /* the rows behind the timeline, in the same order, so a click on a submission opens it */
+  const tlRows = () => {
+    const ev = [];
+    c.list.forEach(r => { ev.push({t: r.at, r}); ((c.M || {})[r.id] || []).forEach(m => ev.push({t: m.t})); });
+    c.log.forEach(l => ev.push({t: l.t}));
+    ev.sort((a, b) => b.t - a.t);
+    return ev.slice(0, 80).map(e => e.r);
+  };
+  const load = async () => {
+    try{ const all = await crmClients(list); c = all.find(x => x.k === key); }catch(e){ box.innerHTML = crmErr(e); return; }
+    if (!c){ box.innerHTML = '<div class="cr-empty">This person has no form leads yet.</div>'; return; }
+    if (!box.isConnected) return;
+    const a = document.activeElement;
+    if (a && box.contains(a) && /INPUT|TEXTAREA/.test(a.tagName) && a.value){ a.addEventListener('blur', () => load(), {once: true}); return; }
+    paint();
+  };
+  load();
+  const on = e => { if (!b.isConnected){ document.removeEventListener('el-crm', on); return; } if (e.detail.domain === S.domain) load(); };
+  document.addEventListener('el-crm', on);
+  return b;
+}
+
+(function(){ if (document.getElementById('cr-css')) return; const st = document.createElement('style'); st.id = 'cr-css';
+  st.textContent =
+    '.cr-tools{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}.cr-tools .search{flex:1;min-width:220px}.cr-seg{flex:none}' +
+    '.ib-stats.cr-kpis{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}.cr-kpis .ib-stat .v{font-variant-numeric:tabular-nums}.cr-hot .v{color:#d03b33}' +
+    '.cr-funnel{display:flex;gap:3px;height:10px;border-radius:99px;overflow:hidden;margin:16px 0 10px;background:#f1f3f6}.cr-funnel span{background:var(--c);min-width:6px;transition:flex .5s cubic-bezier(.2,.7,.3,1)}' +
+    '.cr-leg{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;color:var(--ink-2)}.cr-leg span{display:inline-flex;align-items:center;gap:6px}.cr-leg i{width:8px;height:8px;border-radius:50%}.cr-leg b{color:var(--ink)}.cr-leg em{margin-left:auto;font-style:normal;color:var(--ink-3)}' +
+    '.cr-board{display:grid;grid-template-columns:repeat(6,minmax(210px,1fr));gap:12px;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x proximity}' +
+    '.cr-col{background:#f6f7f9;border:1px solid #eef0f3;border-radius:16px;padding:10px;min-height:220px;display:flex;flex-direction:column;scroll-snap-align:start;transition:background .2s,border-color .2s,box-shadow .2s}' +
+    '.cr-board.dragging .cr-col{border-style:dashed}.cr-col.over{background:color-mix(in srgb,var(--c) 8%,#fff);border-color:var(--c);box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 18%,transparent)}' +
+    '.cr-ch{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:var(--ink);padding:2px 4px 10px}.cr-ch i{width:9px;height:9px;border-radius:50%;background:var(--c)}.cr-ch b{font-size:11.5px;color:var(--ink-3);background:#fff;border-radius:99px;padding:1px 8px;border:1px solid #eceef2}.cr-ch em{margin-left:auto;font-style:normal;font-size:12px;font-weight:650;color:var(--c)}' +
+    '.cr-cards{display:flex;flex-direction:column;gap:8px;overflow-y:auto;max-height:560px;padding:1px}' +
+    '.cr-card{background:#fff;border:1px solid #e9ebef;border-radius:13px;padding:10px 11px;cursor:grab;box-shadow:0 1px 2px rgba(11,12,15,.04);transition:transform .18s,box-shadow .18s,border-color .18s;animation:crIn .35s ease both}' +
+    '.cr-card:hover{transform:translateY(-2px);box-shadow:0 8px 20px -10px rgba(11,12,15,.25);border-color:#dfe3ea}.cr-card.drag{opacity:.45;transform:rotate(2deg) scale(.98)}' +
+    '@keyframes crIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}' +
+    '.cc-top{display:flex;align-items:center;gap:9px}.cc-av{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:#fff;font:700 11px var(--ui)}.cc-n{min-width:0;flex:1;line-height:1.25}.cc-n b{display:block;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cc-n small{display:block;font-size:11.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cc-top em{font-style:normal;font-size:12.5px;font-weight:700;color:#0f7a58}' +
+    '.cc-meta{display:flex;align-items:center;flex-wrap:wrap;gap:5px;margin-top:8px}.cc-meta:empty{display:none}.cc-tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--ink-2);background:#f3f4f7;border-radius:99px;padding:2px 8px}.cc-own{margin-left:auto;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;color:#fff;font:700 9.5px var(--ui);border:2px solid #fff;box-shadow:0 0 0 1px #e9ebef}' +
+    '.cr-due,.cr-wait{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:650;border-radius:99px;padding:2px 8px;white-space:nowrap}.cr-due{background:#eef4ff;color:#1d5fd0}.cr-due.today{background:#fff4e0;color:#b86e00}.cr-due.late{background:#fdecec;color:#c8352e}' +
+    '.cr-wait.ok{background:#e9f8f1;color:#0f7a58}.cr-wait.mid{background:#fff4e0;color:#b86e00}.cr-wait.bad{background:#fdecec;color:#c8352e}' +
+    '.cr-empty{padding:18px 10px;text-align:center;font-size:12.5px;color:var(--ink-3)}.cr-col .cr-empty{border:1.5px dashed #e3e6eb;border-radius:12px}' +
+    '.cr-more{border:0;background:none;font:600 12.5px var(--ui);color:#1d5fd0;padding:6px;cursor:pointer;border-radius:8px}.cr-more:hover{background:#eef4ff}' +
+    '.cr-hint{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-3);margin-top:10px}' +
+    '.cr-conf{position:fixed;width:8px;height:8px;border-radius:2px;pointer-events:none;z-index:9999}' +
+    '.cr-follow{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}.cr-sec{border:1px solid #eef0f3;border-radius:16px;padding:10px;background:#fbfbfc}' +
+    '.cr-sh{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);padding:2px 6px 8px}.cr-sh b{margin-left:auto;font-size:11.5px;letter-spacing:0;color:var(--ink-2);background:#fff;border:1px solid #eceef2;border-radius:99px;padding:1px 8px}' +
+    '.cr-sec.late .cr-sh{color:#c8352e}.cr-sec.today .cr-sh{color:#b86e00}.cr-sec.wait .cr-sh{color:#1d5fd0}' +
+    '.cr-row{display:flex;align-items:center;gap:10px;padding:8px;border-radius:12px;cursor:pointer;background:#fff;border:1px solid transparent;margin-bottom:4px;transition:background .15s,border-color .15s,opacity .3s,transform .3s}.cr-row:hover{border-color:#e6e9ee}.cr-row.going{opacity:.4;transform:translateX(8px)}' +
+    '.cr-rt{flex:1;min-width:0;line-height:1.35}.cr-rt b{display:block;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cr-rt small{display:block;font-size:11.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+    '.cr-ra{display:flex;align-items:center;gap:5px;flex:none}.cr-ib{height:28px;min-width:28px;padding:0 7px;border-radius:9px;border:1px solid var(--line);background:#fff;font:600 11.5px var(--ui);color:var(--ink-2);cursor:pointer;display:grid;place-items:center;transition:background .15s,border-color .15s}.cr-ib:hover{background:#f5f7fa}.cr-ib.go{color:#0f7a58;border-color:#bfe8d4;background:#f2fbf6}.cr-ib.go:hover{background:#e3f6ec}' +
+    '.cr-moretxt{font-size:12px;color:var(--ink-3);padding:4px 8px}' +
+    '.cr-st{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:650;color:var(--ink);background:color-mix(in srgb,var(--c) 11%,#fff);border-radius:99px;padding:2px 9px 2px 7px;white-space:nowrap}.cr-st i{width:7px;height:7px;border-radius:50%;background:var(--c)}' +
+    '.cr-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}.cr-chip{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border-radius:99px;border:1px solid var(--line);background:#fff;font:600 12.5px var(--ui);color:var(--ink-2);cursor:pointer;transition:all .15s}.cr-chip b{font-size:11px;color:var(--ink-3)}.cr-chip:hover{border-color:var(--c)}.cr-chip.on{background:var(--c);border-color:var(--c);color:#fff}.cr-chip.on b{color:rgba(255,255,255,.8)}' +
+    '.cr-ownc{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;white-space:nowrap}.cr-ownc i{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;color:#fff;font:700 9px var(--ui);font-style:normal}.cr-tbl td{vertical-align:middle}.cr-tbl .cr-due{margin-top:4px}' +
+    '.cr-card-d{margin:4px 0 16px}.cr-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px}.cr-steps button{display:flex;align-items:center;justify-content:center;gap:6px;height:36px;border-radius:11px;border:1px solid var(--line);background:#fff;font:600 12.5px var(--ui);color:var(--ink-2);cursor:pointer;transition:all .18s}.cr-steps button:hover{border-color:var(--c);color:var(--c)}.cr-steps button.on{background:var(--c);border-color:var(--c);color:#fff;box-shadow:0 6px 16px -8px var(--c)}' +
+    '.cr-fields{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}.cr-fields label{display:flex;flex-direction:column;gap:5px;min-width:0}.cr-fields span{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3)}' +
+    '.cr-fields input{height:38px;border:1px solid var(--line);border-radius:10px;padding:0 10px;font:inherit;font-size:13.5px;background:#fff;min-width:0;width:100%;box-sizing:border-box;transition:border-color .15s,box-shadow .15s}.cr-fields input:focus{outline:none;border-color:#1d7cf2;box-shadow:0 0 0 3px rgba(29,124,242,.15)}' +
+    '.cr-quick{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 16px}.cr-quick button{height:28px;padding:0 10px;border-radius:99px;border:1px solid var(--line);background:#fff;font:600 12px var(--ui);color:var(--ink-2);cursor:pointer;display:inline-flex;align-items:center;gap:5px}.cr-quick button:hover{background:#f5f7fa}.cr-quick button.go{color:#0f7a58;border-color:#bfe8d4;background:#f2fbf6}' +
+    '.cr-notes{display:flex;flex-direction:column;gap:10px;max-height:260px;overflow:auto;margin-bottom:8px}.cr-nt{display:flex;gap:10px}.cr-nt .cc-av{width:28px;height:28px;font-size:10px}.cr-nt>div{flex:1;min-width:0;background:#f6f7f9;border-radius:4px 14px 14px 14px;padding:8px 11px}.cr-nh{display:flex;align-items:baseline;gap:8px;font-size:12.5px}.cr-nh small{color:var(--ink-3);font-size:11px}.cr-nx{font-size:13.5px;line-height:1.5;white-space:pre-wrap;word-wrap:break-word;margin-top:2px}' +
+    '.cr-comp{display:flex;gap:8px;align-items:flex-end;margin-bottom:16px}.cr-comp textarea{flex:1;border:1px solid var(--line);border-radius:12px;padding:9px 11px;font:inherit;font-size:13.5px;resize:vertical;min-height:42px}.cr-comp textarea:focus{outline:none;border-color:#1d7cf2;box-shadow:0 0 0 3px rgba(29,124,242,.15)}' +
+    '.cr-tl{display:flex;flex-direction:column;max-height:340px;overflow:auto;margin-bottom:14px}.cr-ev{position:relative;display:flex;gap:11px;padding:7px 4px;font-size:13px;line-height:1.45;color:var(--ink-2)}.cr-ev[data-sub]{cursor:pointer;border-radius:10px}.cr-ev[data-sub]:hover{background:#f5f7fa}' +
+    '.cr-ev:before{content:"";position:absolute;left:16px;top:34px;bottom:-8px;width:2px;background:#eef0f4}.cr-ev:last-child:before{display:none}.cr-ev b{color:var(--ink);font-weight:600}.cr-ev small{display:block;font-size:11.5px;color:var(--ink-3)}.cr-ev small.cr-q{color:var(--ink-2);font-size:12.5px;margin:2px 0}' +
+    '.cr-evi{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;color:#fff;background:var(--c);box-shadow:0 0 0 3px #fff}' +
+    '.cr-note-warn{display:flex;align-items:center;gap:7px;font-size:12.5px;color:#c8352e;background:#fdecec;border-radius:10px;padding:8px 11px;margin-bottom:12px}' +
+    '@media (max-width:640px){.cr-fields{grid-template-columns:1fr}.cr-steps{grid-template-columns:repeat(2,1fr)}}' +
+    '.tab-x{display:inline-grid;place-items:center;width:18px;height:18px;margin-left:6px;margin-right:-4px;border-radius:50%;color:var(--ink-3);vertical-align:-3px;transition:background .15s,color .15s}.tab-x:hover{background:#fdecec;color:#c8352e}';
+  document.head.appendChild(st); })();
 
 (async function boot(){
   /* "Open as client" from the EDGE tool passes a short session in the address. */
