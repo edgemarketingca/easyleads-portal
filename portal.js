@@ -2096,7 +2096,7 @@ function startWith(session, me){
   renderApp();
 }
 /* Fresh numbers every few minutes while the page is open. */
-setInterval(() => { if (S.me && !document.hidden && !S.editing && !document.querySelector('.drawer-back,.modal-back,[data-pop],.ia-panel') && !(document.activeElement && /input/i.test(document.activeElement.tagName))){ S.cache = {}; renderApp(); } }, 5 * 60000);
+setInterval(() => { if (S.me && !document.hidden && !S.editing && !document.querySelector('.drawer-back,.modal-back,[data-pop],.ia-panel') && !(document.activeElement && /input/i.test(document.activeElement.tagName))){ Object.keys(S.cache).forEach(k => { if (S.cache[k]) S.cache[k].at = 0; }); renderApp(); } }, 5 * 60000);   /* marked out of date, not thrown away: widgets keep showing what they have and update in place */
 
 /* ---------- clients (CRM): one shared record for every person who reached out ----------
    A client is a person across every form they ever sent (same key as the inbox: email, else
