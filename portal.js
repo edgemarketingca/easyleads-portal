@@ -487,7 +487,8 @@ function markMenu(btn, r, M, onDone){
     const others = before.filter(x => x.name !== mine);
     M[r.id] = s === 'none' ? others : others.concat({s, by: S.me && S.me.edge && !S.me.edgeName ? 'EM' : initials(mine || S.me.user.email), name: mine, t: Date.now()});
     onDone();
-    try{ const j = await api('portalMark', {session: S.session, domain: S.domain, id: r.id, s}); if (j.error) throw new Error(j.error); M[r.id] = j.marks || []; onDone(); teamFetch(); }
+    try{ const j = await api('portalMark', {session: S.session, domain: S.domain, id: r.id, s}); if (j.error) throw new Error(j.error); M[r.id] = j.marks || []; onDone(); teamFetch();
+      undoPush(s === 'none' ? 'Removed your mark' : 'Marked as ' + MARKS[s][0], () => markSetQuiet(r, cur || 'none', M, onDone)); }
     catch(e){ M[r.id] = before; onDone(); toast('Couldn’t save that mark: ' + e.message); }
   }));
 }
@@ -1224,7 +1225,7 @@ function layout(){
     if (first && !first.items.some(i => i.t === 'inbox')) first.items.splice(Math.min(1, first.items.length), 0, item('inbox'));
     if (!L.dashes.some(d => d.items.some(i => i.t === 'email'))) { const mk = DEFAULT_DASHES().find(d => d.items.some(i => i.t === 'email')); if (mk) L.dashes.push(mk); }
     if (!L.dashes.some(d => d.items.some(i => i.t === 'people'))){ const sales = L.dashes.find(d => /sales/i.test(d.name)); if (sales) sales.items.push(item('people')); else L.dashes.push({id: uid(), name: 'Contacts', items: [item('people')]}); }
-    L.v = LAYOUT_V; setTimeout(saveLayout, 0);
+    L.v = LAYOUT_V; setTimeout(() => saveLayout(true), 0);
   }
   /* Tabs added by themselves (Website, Google Search, AI visibility, Clients) are added once, and
      remembered in the layout, so a tab someone deletes stays deleted. */
@@ -1261,7 +1262,7 @@ function layout(){
       item('note', 12, {title: 'Your clients', about: 'crm_board', text: 'Everyone who reached out, on any form. Move them through the stages, set a value, an owner and a follow-up date, and leave notes; your whole team sees it live.'}),
       item('crm_kpis'), item('crm_board', 12), item('crm_follow', 12), item('crm_clients', 12)]});
   }
-  if (JSON.stringify(A) !== A0 && canEdit()) setTimeout(saveLayout, 0);
+  if (JSON.stringify(A) !== A0 && canEdit()) setTimeout(() => saveLayout(true), 0);
   /* Widgets made for one client appear on their dashboard by themselves (hidden everywhere else). */
   Object.keys(W).filter(t => W[t].only && W[t].only.indexOf(S.domain) > -1).forEach(t => {
     const L = S.layout;
@@ -1269,11 +1270,18 @@ function layout(){
     const first = L.dashes[0], at = first.items.findIndex(i => i.t === 'kpis');
     first.items.splice(at < 0 ? 0 : at + 1, 0, item(t));
   });
+  if (LSNAP_OBJ !== S.layout){ LSNAP_OBJ = S.layout; LSNAP = JSON.stringify(S.layout); }
   return S.layout;
 }
 let saveT = null;
-function saveLayout(){
+function saveLayout(silent){
   if (!canEdit()) return;
+  const now = JSON.stringify(S.layout);
+  if (silent !== true && !UNDO_BUSY && LSNAP && LSNAP !== now){
+    const prev = LSNAP;
+    undoPush(layLabel(JSON.parse(prev), S.layout), () => { S.layout = JSON.parse(prev); saveLayout(); renderApp(); }, {lay: 1});
+  }
+  LSNAP = now; LSNAP_OBJ = S.layout;
   ls.set('el_layout_' + (S.me && S.me.user.email), S.layout);
   clearTimeout(saveT);
   saveT = setTimeout(() => api('portalSaveLayout', {session: S.session, layout: S.layout}).then(j => { if (j.error) toast(j.error); }).catch(() => {}), 1200);
@@ -1344,7 +1352,7 @@ function wireTop(){
   const L = layout(), dash = curDash();
   const aw = q('[data-addw]'); if (aw) aw.addEventListener('click', () => catalog(dash));
   const rn = q('[data-rename]'); if (rn) rn.addEventListener('click', () => { const n = prompt('Dashboard name:', dash.name); if (n && n.trim()){ dash.name = n.trim().slice(0, 40); saveLayout(); renderApp(); } });
-  const delDash = d => { if (L.dashes.length < 2){ toast('Keep at least one dashboard.'); return; } if (!confirm('Delete the “' + d.name + '” dashboard?')) return; const at = L.dashes.indexOf(d); L.dashes.splice(at, 1); S.dash = Math.max(0, Math.min(S.dash > at ? S.dash - 1 : S.dash, L.dashes.length - 1)); saveLayout(); renderApp(); toast('Dashboard deleted'); };
+  const delDash = d => { if (L.dashes.length < 2){ toast('Keep at least one dashboard.'); return; } const at = L.dashes.indexOf(d); L.dashes.splice(at, 1); S.dash = Math.max(0, Math.min(S.dash > at ? S.dash - 1 : S.dash, L.dashes.length - 1)); saveLayout(); renderApp(); };
   const dd = q('[data-deldash]'); if (dd) dd.addEventListener('click', () => delDash(dash));
   if (arranging()) tabsReorder(L);
   if (arranging() && L.dashes.length > 1) app.querySelectorAll('.tab[data-dash]').forEach(b => { const x = document.createElement('span'); x.className = 'tab-x'; x.title = 'Delete this dashboard'; x.innerHTML = ic('x', 11); x.addEventListener('click', e => { e.stopPropagation(); delDash(L.dashes[Number(b.dataset.dash)]); }); b.appendChild(x); });
@@ -1787,7 +1795,7 @@ function bizMenu(btn){
   const draw = () => {
     box.innerHTML = shown.length ? shown.map((x, i) => '<button type="button" role="option" class="biz-it' + (x.domain === S.domain ? ' cur' : '') + (i === act ? ' act' : '') + '" data-d="' + esc(x.domain) + '" aria-selected="' + (x.domain === S.domain) + '"><img alt="" src="https://www.google.com/s2/favicons?domain=' + encodeURIComponent(x.domain || '') + '&sz=64" onerror="this.style.visibility=\'hidden\'"><span class="biz-tx"><b>' + esc(x.name) + '</b><small>' + esc(x.domain) + '</small></span>' + (x.domain === S.domain ? '<span class="biz-ck">' + ic('check', 16) + '</span>' : '') + '</button>').join('') : '<div class="biz-none">No business matches that.</div>';
   };
-  const pick = d => { closePops(); if (!d || d === S.domain) return; S.domain = d; S.ui = {}; ls.set('el_domain', S.domain); renderApp(); };
+  const pick = d => { closePops(); if (!d || d === S.domain) return; S.domain = d; S.ui = {}; UNDO.length = 0; ls.set('el_domain', S.domain); renderApp(); };
   draw();
   btn.parentNode.appendChild(m);
   requestAnimationFrame(() => requestAnimationFrame(() => m.classList.add('in')));
@@ -1908,7 +1916,7 @@ document.addEventListener('el-team', e => {
   box.v = at; box.at = 0; crmFor(dom).then(() => crmEmit(dom)).catch(() => {});
 });
 const crmMe = () => myMarkName() || (S.me && S.me.user.email) || 'You';
-async function crmSave(key, set){
+async function crmSave(key, set, o){
   const dom = S.domain;
   const data = await crmFor(dom).catch(() => null) || ((CRM[dom] = CRM[dom] || {}).data = (CRM[dom].data || {}));
   const before = data[key] ? JSON.parse(JSON.stringify(data[key])) : null;
@@ -1917,6 +1925,7 @@ async function crmSave(key, set){
   Object.keys(set).forEach(f => {
     const v = set[f];
     if (f === 'note') rec.notes = (rec.notes || []).concat({t, name, by, x: v});
+    else if (f === 'unnote'){ const ns = (rec.notes || []).slice(); for (let q = ns.length - 1; q >= 0; q--) if (ns[q].name === name){ ns.splice(q, 1); break; } rec.notes = ns; }
     else if (f === 'done') rec.due = '';
     else rec[f] = v;
     rec.log = (rec.log || []).concat({t, name, by, f, v});
@@ -1929,6 +1938,18 @@ async function crmSave(key, set){
     if (j.rec) data[key] = j.rec;
     if (CRM[dom]) CRM[dom].v = Math.max(CRM[dom].v || 0, j.at || 0);
     crmEmit(dom);
+    if (!(o && o.undo === false)){
+      /* what to send to put it back the way it was */
+      const prev = {}, b0 = before || {};
+      Object.keys(set).forEach(f => {
+        if (f === 'stage') prev.stage = STG[b0.stage] ? b0.stage : 'new';
+        else if (f === 'value' || f === 'owner' || f === 'due') prev[f] = b0[f] != null ? b0[f] : '';
+        else if (f === 'done') prev.due = set.done || b0.due || '';
+        else if (f === 'note') prev.unnote = 1;
+      });
+      const label = set.stage ? 'Moved to ' + STG[set.stage][1] + (set.value ? ' · ' + money(set.value) : '') : set.note ? 'Added a note' : set.done != null ? 'Finished a follow-up' : set.value != null ? 'Changed the job value' : set.owner != null ? 'Changed the owner' : set.due != null ? 'Changed the follow-up date' : 'Client change';
+      if (Object.keys(prev).length) undoPush(label, () => crmSave(key, prev, {undo: false}).then(ok => { if (!ok) throw new Error('not saved'); }));
+    }
     return true;
   }catch(e){
     if (before) data[key] = before; else delete data[key];
@@ -2204,7 +2225,7 @@ function openClient(key, list){
     c.log.forEach(l => {
       const w = '<b>' + esc(l.name || l.by) + '</b> ';
       const h = l.f === 'stage' ? w + 'moved them to ' + stagePill(STG[l.v] ? l.v : 'new') : l.f === 'value' ? w + (Number(l.v) ? 'set the job value to <b>' + money(l.v) + '</b>' : 'cleared the job value') : l.f === 'owner' ? w + (l.v ? 'gave this client to <b>' + esc(l.v) + '</b>' : 'removed the owner') :
-        l.f === 'due' ? w + (l.v ? 'set a follow-up for <b>' + esc(new Date(l.v + 'T00:00:00').toLocaleDateString('en-CA', {weekday: 'short', month: 'short', day: 'numeric'})) + '</b>' : 'cleared the follow-up') : l.f === 'done' ? w + 'finished the follow-up' : w + 'added a note';
+        l.f === 'due' ? w + (l.v ? 'set a follow-up for <b>' + esc(new Date(l.v + 'T00:00:00').toLocaleDateString('en-CA', {weekday: 'short', month: 'short', day: 'numeric'})) + '</b>' : 'cleared the follow-up') : l.f === 'done' ? w + 'finished the follow-up' : l.f === 'unnote' ? w + 'removed a note' : w + 'added a note';
       ev.push({t: l.t, ic: l.f === 'stage' ? (STG[l.v] || STG.new)[3] : l.f === 'value' ? 'money' : l.f === 'owner' ? 'users' : l.f === 'note' ? 'edit' : 'clock', col: l.f === 'stage' ? (STG[l.v] || STG.new)[2] : '#64748b', h, who: l.name || l.by});
     });
     ev.sort((a, b) => b.t - a.t); EV = ev.slice(0, 80);
@@ -2288,7 +2309,7 @@ const crmLook = a => a.f === 'stage' ? [(STG[a.v] || STG.new)[2], (STG[a.v] || S
 const crmVerb = (a, lead) => { const L = '<b>' + esc(lead) + '</b>';
   return a.f === 'stage' ? 'moved ' + L + ' to ' + stagePill(STG[a.v] ? a.v : 'new') : a.f === 'value' ? (Number(a.v) ? 'set ' + L + '’s job value to <b>' + money(a.v) + '</b>' : 'cleared ' + L + '’s job value') :
     a.f === 'owner' ? (a.v ? 'gave ' + L + ' to <b>' + esc(a.v) + '</b>' : 'removed ' + L + '’s owner') : a.f === 'due' ? (a.v ? 'set a follow-up with ' + L + ' for <b>' + esc(new Date(a.v + 'T00:00:00').toLocaleDateString('en-CA', {month: 'short', day: 'numeric'})) + '</b>' : 'cleared the follow-up with ' + L) :
-    a.f === 'done' ? 'finished the follow-up with ' + L : 'left a note on ' + L; };
+    a.f === 'done' ? 'finished the follow-up with ' + L : a.f === 'unnote' ? 'removed a note on ' + L : 'left a note on ' + L; };
 
 /* ----- Dashboard tabs: drag to reorder (while customizing) ----- */
 function tabsReorder(L){
@@ -2305,7 +2326,7 @@ function tabsReorder(L){
       const right = b.classList.contains('tab-ovr'), target = L.dashes[Number(b.dataset.dash)], moved = L.dashes[from], cur = L.dashes[S.dash];
       clear(); if (!target || !moved || target === moved) return;
       L.dashes.splice(from, 1); L.dashes.splice(L.dashes.indexOf(target) + (right ? 1 : 0), 0, moved);
-      S.dash = Math.max(0, L.dashes.indexOf(cur)); saveLayout(); renderApp(); toast('Dashboard moved');
+      S.dash = Math.max(0, L.dashes.indexOf(cur)); saveLayout(); renderApp();
     });
   });
 }
@@ -2360,8 +2381,74 @@ function tabsReorder(L){
     '.ib-crm:empty{display:none}.ib-crm{margin-top:7px}.ib-cr{display:inline-flex;align-items:center;flex-wrap:wrap;gap:6px;border:1px solid #e6e9ee;background:#fafbfc;border-radius:99px;padding:3px 8px 3px 4px;font:inherit;font-size:11.5px;color:var(--ink-2);cursor:pointer;transition:border-color .15s,background .15s}.ib-cr:hover{border-color:#c9d3e3;background:#f3f6fb}.ib-cr>svg:last-child{color:var(--ink-3)}' +
     '.ib-cr.ghost{opacity:0;padding:3px 9px;gap:5px;transition:opacity .2s}.ibrow:hover .ib-cr.ghost,.ib-cr.ghost:focus{opacity:1}.ib-crv{font-weight:700;color:#0f7a58}.ib-crw{color:var(--ink-3)}' +
     '.tab-dr{cursor:grab}.tab-drag{opacity:.35}.tab-ovl{box-shadow:inset 3px 0 0 #1d7cf2}.tab-ovr{box-shadow:inset -3px 0 0 #1d7cf2}' +
+    '.toast.ut{display:flex;align-items:center;gap:12px;padding:8px 8px 8px 16px}.toast.ut button{display:inline-flex;align-items:center;gap:6px;border:0;background:rgba(255,255,255,.14);color:#fff;font:600 12.5px var(--ui);padding:6px 11px;border-radius:9px;cursor:pointer;transition:background .15s}.toast.ut button:hover{background:rgba(255,255,255,.26)}.toast.ut kbd{font:600 11px var(--ui);color:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.2);border-radius:6px;padding:2px 6px}.toast.out{opacity:0;transition:opacity .25s}' +
     '.tab-x{display:inline-grid;place-items:center;width:18px;height:18px;margin-left:6px;margin-right:-4px;border-radius:50%;color:var(--ink-3);vertical-align:-3px;transition:background .15s,color .15s}.tab-x:hover{background:#fdecec;color:#c8352e}';
   document.head.appendChild(st); })();
+/* ---------- Undo: Ctrl+Z (⌘Z on a Mac), or the Undo button on the note that appears after a change ----------
+   Covers dashboard changes (widgets added, removed, moved or resized, dashboards added, deleted,
+   renamed or moved), client changes (stage, value, owner, follow-up, notes) and lead marks. Inside a
+   text box Ctrl+Z keeps undoing typing, as usual. Switching business starts a fresh history. */
+const UNDO = [];
+let UNDO_BUSY = false;
+const isMac = /Mac|iPhone|iPad/.test(navigator.platform || '');
+function undoPush(label, run, x){
+  const top = UNDO[UNDO.length - 1];
+  if (x && x.lay && top && top.lay && top.label === label && Date.now() - top.t < 1500){ top.t = Date.now(); undoToast(label); return; }   /* one drag or resize = one undo */
+  UNDO.push(Object.assign({label, run, t: Date.now(), dom: S.domain}, x || {}));
+  if (UNDO.length > 60) UNDO.shift();
+  undoToast(label);
+}
+async function undoLast(){
+  const u = UNDO.pop();
+  document.querySelectorAll('.toast.ut').forEach(x => x.remove());
+  if (!u){ toast('Nothing to undo'); return; }
+  if (u.dom !== S.domain){ UNDO.length = 0; toast('Nothing to undo'); return; }
+  UNDO_BUSY = true;
+  try{ await u.run(); toast('Undone: ' + u.label); }
+  catch(e){ toast('Couldn’t undo that: ' + (e && e.message || 'try again')); }
+  finally{ UNDO_BUSY = false; }
+}
+function undoToast(label){
+  document.querySelectorAll('.toast.ut').forEach(x => x.remove());
+  const t = document.createElement('div'); t.className = 'toast ut';
+  t.innerHTML = '<span>' + esc(label) + '</span><button type="button">' + ic('reset', 13) + 'Undo</button><kbd>' + (isMac ? '⌘Z' : 'Ctrl Z') + '</kbd>';
+  t.querySelector('button').addEventListener('click', () => undoLast());
+  document.body.appendChild(t);
+  clearTimeout(undoToast.tm); undoToast.tm = setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 250); }, 6500);
+}
+document.addEventListener('keydown', e => {
+  if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || String(e.key).toLowerCase() !== 'z') return;
+  const a = document.activeElement;
+  if (a && (/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) || a.isContentEditable)) return;
+  if (!S.me) return;
+  e.preventDefault(); undoLast();
+});
+/* What changed between two saved layouts, in words, for the undo note. */
+function layLabel(a, b){
+  try{
+    const did = d => d.id || d.name, A = a.dashes, B = b.dashes;
+    if (A.length > B.length){ const g = A.find(d => !B.some(x => did(x) === did(d))); return 'Deleted dashboard “' + (g ? g.name : '') + '”'; }
+    if (A.length < B.length) return 'Added a dashboard';
+    if (A.map(did).join('|') !== B.map(did).join('|')) return 'Moved a dashboard';
+    for (let i = 0; i < A.length; i++){
+      const x = A[i], y = B[i];
+      if (x.name !== y.name) return 'Renamed dashboard to “' + y.name + '”';
+      if (x.items.length > y.items.length) return 'Removed a widget';
+      if (x.items.length < y.items.length) return 'Added a widget';
+      if (x.items.map(z => z.id).join() !== y.items.map(z => z.id).join()) return 'Moved a widget';
+      for (let k = 0; k < x.items.length; k++){ const p = x.items[k], q = y.items[k]; if (JSON.stringify(p) !== JSON.stringify(q)) return (p.c !== q.c || p.h !== q.h) ? 'Resized a widget' : (q.t === 'note' ? 'Edited a heading' : 'Changed a widget'); }
+    }
+  }catch(e){}
+  return 'Dashboard change';
+}
+let LSNAP = null, LSNAP_OBJ = null;
+async function markSetQuiet(r, s, M, onDone){
+  const j = await api('portalMark', {session: S.session, domain: S.domain, id: r.id, s});
+  if (j.error) throw new Error(j.error);
+  M[r.id] = j.marks || [];
+  try{ onDone(); }catch(e){}
+  crmMarksOut(M); teamFetch();
+}
 
 (async function boot(){
   /* "Open as client" from the EDGE tool passes a short session in the address. */
