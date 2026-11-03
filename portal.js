@@ -1920,6 +1920,27 @@ function lgChart(root){
   draw();
   const iv = still ? 0 : setInterval(() => { if (!document.hidden) draw(); }, 3000);
 }
+/* Right after signing in (never on reload or sign-out): a full-screen Easyleads welcome with the
+   person's own name, while the dashboard gets ready underneath; then it opens onto it. */
+function lgWelcome(me){
+  try{
+    const u = (me && me.user) || {}, raw = String(u.name || '').trim() || String(u.email || '').split('@')[0].replace(/[._-]+/g, ' ');
+    const first = (raw.split(/\s+/)[0] || 'there').replace(/^./, c => c.toUpperCase());
+    const h = new Date().getHours(), hello = h < 5 ? 'Good evening' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+    const cl = (me && me.clients) || [], biz = cl.length === 1 ? (cl[0].name || cl[0].domain || '') : '';
+    const still = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const w = document.createElement('div'); w.className = 'lw'; w.setAttribute('role', 'status'); w.setAttribute('aria-live', 'polite');
+    w.innerHTML = '<div class="lg-aur" aria-hidden="true"><i class="a1"></i><i class="a2"></i><i class="a3"></i><i class="a4"></i><div class="lg-grid"></div><div class="lg-noise"></div></div>' +
+      '<div class="lw-in"><div class="lw-mark"><i class="r1"></i><i class="r2"></i><span class="lw-ring"></span><img src="img/easyleads-mark.png" alt=""></div>' +
+      '<div class="lw-hello">' + esc(hello) + '</div><h1 class="lw-h">Welcome back,</h1>' +
+      '<div class="lw-name" aria-label="' + esc(first) + '">' + [...first].map((c, i) => '<span style="--i:' + i + '">' + esc(c) + '</span>').join('') + '<span class="lw-dot" style="--i:' + first.length + '">.</span></div>' +
+      '<div class="lw-sub">' + (biz ? 'Opening <b>' + esc(biz) + '</b>' : 'Opening your dashboard') + '</div><div class="lw-bar"><i></i></div>' +
+      '<img class="lw-logo" src="img/easyleads-logo-white.png" alt="' + esc(BRAND) + '"></div>';
+    document.body.appendChild(w);
+    const stay = still ? 1100 : 2900;
+    setTimeout(() => { w.classList.add('out'); setTimeout(() => w.remove(), 750); }, stay);
+  }catch(e){}
+}
 function renderLogin(msg){
   app.innerHTML = lgShell('<form class="lg-card" novalidate><div class="lg-logo"><img src="img/easyleads-logo.png" alt="' + esc(BRAND) + '"></div>' +
     '<h1>Welcome back</h1><p class="lg-sub">Sign in to see your leads, calls and bookings.</p>' +
@@ -1951,6 +1972,7 @@ function renderLogin(msg){
       const j = await api('portalLogin', {email: em, password: pv});
       if (j.error) throw new Error(j.error);
       cover.querySelector('span:last-child').textContent = 'Loading your dashboard…';
+      lgWelcome(j.me);
       startWith(j.session, j.me);
     }catch(err){ cover.remove(); m.textContent = err.message; m.className = 'msg err'; btn.disabled = false; busy = false; f.classList.remove('shake'); void f.offsetWidth; f.classList.add('shake'); pw.select(); }
   });
@@ -2028,6 +2050,27 @@ function renderLogin(msg){
     '@media (max-width:760px){.lg{grid-template-columns:1fr}.lg-side{display:none}.lg-main{min-height:100vh;background:none;box-shadow:none;padding:28px 16px;animation:none}.lg-main:before{display:none}' +
       '.lg-card{width:min(420px,100%);padding:34px 28px 24px;border-radius:26px;background:#fff;box-shadow:0 40px 80px -30px rgba(2,6,23,.8)}.lg-card h1{font-size:26px;margin-top:26px}.lg-cover{inset:0}.lg-pow{position:static;margin-top:20px;color:#8fa2cc}.lg-pow b{color:#c9d8ff}}' +
     '@media (max-width:480px){.lg-card{padding:30px 22px 22px;border-radius:24px}}' +
+    '.lw{--mx:50%;--my:45%;position:fixed;inset:0;z-index:10000;display:grid;place-items:center;background:#071027;overflow:hidden;animation:lwIn .45s ease both;font-family:var(--ui)}' +
+    '.lw.out{animation:lwOut .7s cubic-bezier(.6,0,.4,1) forwards}.lw.out .lw-in{animation:lwZoom .7s cubic-bezier(.6,0,.4,1) forwards}' +
+    '@keyframes lwIn{from{opacity:0}to{opacity:1}}@keyframes lwOut{to{opacity:0;visibility:hidden}}@keyframes lwZoom{to{transform:scale(1.06);filter:blur(6px);opacity:0}}' +
+    '.lw-in{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;text-align:center;padding:24px}' +
+    '.lw-mark{position:relative;width:112px;height:112px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(160deg,rgba(255,255,255,.16),rgba(255,255,255,.05));border:1px solid rgba(255,255,255,.18);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 30px 70px -20px rgba(29,124,242,.6),inset 0 1px 0 rgba(255,255,255,.2);animation:lwPop .9s cubic-bezier(.2,1.2,.3,1) both .1s}' +
+    '.lw-mark img{width:54px;height:54px;object-fit:contain;filter:drop-shadow(0 6px 16px rgba(29,124,242,.6))}' +
+    '.lw-ring{position:absolute;inset:-6px;border-radius:50%;background:conic-gradient(from 0deg,rgba(91,176,255,0),#5bb0ff 120deg,#1d7cf2 200deg,rgba(29,124,242,0) 300deg);-webkit-mask:radial-gradient(circle,transparent 62%,#000 63%);mask:radial-gradient(circle,transparent 62%,#000 63%);animation:spin 1.4s linear infinite}' +
+    '.lw-mark i{position:absolute;inset:0;border-radius:50%;border:1.5px solid rgba(91,176,255,.55);animation:lwWave 2.4s cubic-bezier(.2,.7,.2,1) infinite .5s}.lw-mark i.r2{animation-delay:1.3s}' +
+    '@keyframes lwWave{from{transform:scale(1);opacity:.8}to{transform:scale(2.6);opacity:0}}@keyframes lwPop{from{transform:scale(.4);opacity:0}to{transform:none;opacity:1}}' +
+    '.lw-hello{margin-top:34px;font-size:13px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:#8cc8ff;animation:lgUp .7s cubic-bezier(.2,.7,.2,1) both .35s}' +
+    '.lw-h{font:600 clamp(30px,4vw,46px)/1.1 var(--display);letter-spacing:-.02em;color:#fff;margin:12px 0 0;animation:lgUp .7s cubic-bezier(.2,.7,.2,1) both .5s}' +
+    '.lw-name{font:700 clamp(54px,8vw,104px)/1.05 var(--display);letter-spacing:-.035em;margin-top:4px;padding:0 .06em .08em;white-space:nowrap}' +
+    '.lw-name span{display:inline-block;background:linear-gradient(180deg,#fff 10%,#8cc8ff 60%,#3a9bff);-webkit-background-clip:text;background-clip:text;color:transparent;animation:lwLetter .8s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(.75s + var(--i) * .06s)}' +
+    '.lw-name .lw-dot{color:#3a9bff;background:none;-webkit-text-fill-color:#3a9bff}' +
+    '@keyframes lwLetter{from{opacity:0;transform:translateY(.45em) scale(.9);filter:blur(10px)}to{opacity:1;transform:none;filter:blur(0)}}' +
+    '.lw-sub{margin-top:18px;font-size:16px;color:#b8c6e6;animation:lgUp .7s cubic-bezier(.2,.7,.2,1) both 1.25s}.lw-sub b{color:#fff;font-weight:600}' +
+    '.lw-bar{width:220px;height:4px;border-radius:99px;background:rgba(255,255,255,.12);margin-top:22px;overflow:hidden;animation:lgUp .6s ease both 1.35s}' +
+    '.lw-bar i{display:block;height:100%;width:100%;border-radius:inherit;background:linear-gradient(90deg,#1d7cf2,#5bb0ff,#bfe0ff);transform-origin:left;transform:scaleX(0);animation:lwFill 1.5s cubic-bezier(.4,0,.2,1) forwards 1.4s;box-shadow:0 0 12px rgba(91,176,255,.8)}' +
+    '@keyframes lwFill{to{transform:scaleX(1)}}' +
+    '.lw-logo{height:26px;width:auto;margin-top:46px;opacity:0;animation:lwFade .8s ease forwards 1.6s}@keyframes lwFade{to{opacity:.75}}' +
+    '@media (prefers-reduced-motion:reduce){.lw *,.lw *:before{animation-duration:.01s!important;animation-delay:0s!important}.lw-bar i{transform:scaleX(1)}}' +
     '@media (prefers-reduced-motion:reduce){.lg *,.lg *:before,.lg *:after{animation:none!important;transition:none!important}}';
   document.head.appendChild(st); })();
 let signingOut = false;
