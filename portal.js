@@ -1876,18 +1876,18 @@ function lgShell(card){
       '<div class="lg-pitch"><h2>Every lead, call and booking, <em>in one place.</em></h2>' +
       '<p>See who reached out, where they came from and what happened next, live, with your whole team.</p></div>' +
       '<div class="lg-stack">' +
-        '<div class="lg-chip c1"><span class="ic" style="--c:#5bb0ff">' + LG_IC.form + '</span><div><b>New lead</b><small>Contact form · just now</small></div><em class="lg-live">Live</em></div>' +
+        '<div class="lg-col"><div class="lg-chip c1"><span class="ic" style="--c:#5bb0ff">' + LG_IC.form + '</span><div><b>New lead</b><small>Contact form · just now</small></div><em class="lg-live">Live</em></div>' +
         '<div class="lg-chip c2"><span class="ic" style="--c:#34d399">' + LG_IC.phone + '</span><div><b>Call answered</b><small>From Google Ads · 4 min</small></div></div>' +
-        '<div class="lg-chip c3"><span class="ic" style="--c:#fbbf24">' + LG_IC.cal + '</span><div><b>Booking confirmed</b><small>Tomorrow · 10:30 a.m.</small></div><em class="lg-amt">Won</em></div>' +
+        '<div class="lg-chip c3"><span class="ic" style="--c:#fbbf24">' + LG_IC.cal + '</span><div><b>Booking confirmed</b><small>Tomorrow · 10:30 a.m.</small></div><em class="lg-amt">Won</em></div></div>' +
         '<div class="lg-spark" data-lgchart><div class="lg-sh"><div><b>Leads</b><small>updated live, every day</small></div><em class="lg-live"><i></i>Live</em></div>' +
-          '<svg viewBox="0 0 260 110" preserveAspectRatio="none"><defs>' +
+          '<svg viewBox="0 0 400 180" preserveAspectRatio="none"><defs>' +
             '<linearGradient id="lgsa" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#3a9bff" stop-opacity=".55"/><stop offset=".6" stop-color="#1d7cf2" stop-opacity=".14"/><stop offset="1" stop-color="#1d7cf2" stop-opacity="0"/></linearGradient>' +
             '<linearGradient id="lgsl" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#5bb0ff"/><stop offset="1" stop-color="#bfe0ff"/></linearGradient>' +
             '<linearGradient id="lgss" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".22"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>' +
             '<filter id="lgglow" x="-20%" y="-40%" width="140%" height="180%"><feGaussianBlur stdDeviation="3.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>' +
-            '<g class="lg-gl"><line x1="0" x2="260" y1="28" y2="28"/><line x1="0" x2="260" y1="58" y2="58"/><line x1="0" x2="260" y1="88" y2="88"/></g>' +
-            '<g class="lg-bars"></g><path class="ar" fill="url(#lgsa)"/><path class="ln" fill="none" stroke="url(#lgsl)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" filter="url(#lgglow)"/>' +
-            '<rect class="sw" x="-60" y="0" width="60" height="110" fill="url(#lgss)"/><circle class="pr" r="9" fill="#5bb0ff" opacity="0"/><circle class="pt" r="4.2" fill="#fff" stroke="#3a9bff" stroke-width="2.4" opacity="0"/></svg>' +
+            '<g class="lg-gl"><line x1="0" x2="400" y1="40" y2="40"/><line x1="0" x2="400" y1="85" y2="85"/><line x1="0" x2="400" y1="130" y2="130"/></g>' +
+            '<g class="lg-bars"></g><path class="ar" fill="url(#lgsa)"/><path class="ln" fill="none" stroke="url(#lgsl)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" filter="url(#lgglow)"/>' +
+            '<rect class="sw" x="-80" y="0" width="80" height="180" fill="url(#lgss)"/><circle class="pr" r="11" fill="#5bb0ff" opacity="0"/><circle class="pt" r="5.5" fill="#fff" stroke="#3a9bff" stroke-width="3" opacity="0"/></svg>' +
           '<div class="lg-ax"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div></div>' +
       '</div><div class="lg-foot">© ' + new Date().getFullYear() + ' ' + esc(BRAND) + ' · Private and secure</div></section>' +
     '<main class="lg-main">' + card + '<div class="lg-pow">Powered by <b>' + esc(BRAND) + '</b></div></main></div>';
@@ -1902,10 +1902,10 @@ function lgChart(root){
   let n = 0;
   const draw = () => {
     if (!el.isConnected){ clearInterval(iv); return; }
-    const ys = LG_SHAPES[n++ % LG_SHAPES.length], p = ys.map((y, i) => [Math.round(i * 260 / (ys.length - 1)), y]);
+    const ys = LG_SHAPES[n++ % LG_SHAPES.length], p = ys.map((y, i) => [Math.round(i * 392 / (ys.length - 1)) + 4, Math.round(y * 1.75 + 6)]);
     const d = lgCurve(p), last = p[p.length - 1];
-    ln.setAttribute('d', d); ar.setAttribute('d', d + ' L260 110 L0 110 Z');
-    bars.innerHTML = p.slice(0, -1).map((q, i) => '<rect x="' + (q[0] + 8) + '" width="10" rx="3" y="' + (110 - (110 - q[1]) * .45).toFixed(1) + '" height="' + ((110 - q[1]) * .45).toFixed(1) + '"/>').join('');
+    ln.setAttribute('d', d); ar.setAttribute('d', d + ' L396 180 L4 180 Z');
+    bars.innerHTML = p.slice(0, -1).map((q, i) => '<rect x="' + (q[0] + 13) + '" width="16" rx="4" y="' + (180 - (180 - q[1]) * .42).toFixed(1) + '" height="' + ((180 - q[1]) * .42).toFixed(1) + '"/>').join('');
     pt.setAttribute('cx', last[0]); pt.setAttribute('cy', last[1]); pr.setAttribute('cx', last[0]); pr.setAttribute('cy', last[1]);
     if (still){ pt.setAttribute('opacity', 1); return; }
     const len = ln.getTotalLength();
@@ -1914,7 +1914,7 @@ function lgChart(root){
     ar.animate([{clipPath: 'inset(0 100% 0 0)', opacity: .4}, {clipPath: 'inset(0 0% 0 0)', opacity: 1}], {duration: 1300, easing: 'cubic-bezier(.3,.7,.2,1)', fill: 'both'});
     [...bars.children].forEach((b, i) => b.animate([{transform: 'scaleY(0)', opacity: 0}, {transform: 'scaleY(1)', opacity: 1}], {duration: 600, delay: 80 + i * 70, easing: 'cubic-bezier(.2,.7,.2,1)', fill: 'both'}));
     [bars].forEach(g => g.querySelectorAll('rect').forEach(r => { r.style.transformBox = 'fill-box'; r.style.transformOrigin = '50% 100%'; }));
-    sw.animate([{transform: 'translateX(0)'}, {transform: 'translateX(330px)'}], {duration: 1400, delay: 100, easing: 'ease-in-out', fill: 'both'});
+    sw.animate([{transform: 'translateX(0)'}, {transform: 'translateX(500px)'}], {duration: 1400, delay: 100, easing: 'ease-in-out', fill: 'both'});
     pt.animate([{opacity: 0, transform: 'scale(0)'}, {opacity: 1, transform: 'scale(1.25)'}, {opacity: 1, transform: 'scale(1)'}], {duration: 500, delay: 1150, easing: 'ease-out', fill: 'both'});
     pr.animate([{opacity: .55, transform: 'scale(.4)'}, {opacity: 0, transform: 'scale(2.4)'}], {duration: 1200, delay: 1300, easing: 'ease-out', fill: 'forwards'});
     [pt, pr].forEach(c => { c.style.transformBox = 'fill-box'; c.style.transformOrigin = 'center'; });
@@ -1979,19 +1979,19 @@ function renderLogin(msg){
     '.lg-pitch h2{font:600 clamp(36px,4vw,58px)/1.08 var(--display);letter-spacing:-.03em;margin:0 0 18px;color:#fff}' +
     '.lg-pitch h2 em{font-style:normal;background:linear-gradient(90deg,#5bb0ff,#2b8cff 55%,#8cc8ff);-webkit-background-clip:text;background-clip:text;color:transparent}' +
     '.lg-pitch p{font-size:18px;line-height:1.6;color:#b8c6e6;margin:0;max-width:540px}' +
-    '.lg-stack{position:relative;margin:46px 0 auto;height:310px}' +
-    '.lg-chip{position:absolute;display:flex;align-items:center;gap:14px;padding:16px 20px 16px 16px;border-radius:20px;background:linear-gradient(180deg,rgba(255,255,255,.12),rgba(255,255,255,.06));border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 20px 40px -20px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.12);min-width:300px}' +
+    '.lg-stack{position:relative;margin:46px 0 auto;display:grid;grid-template-columns:330px minmax(320px,480px);gap:22px;align-items:stretch}.lg-col{display:flex;flex-direction:column;gap:14px}' +
+    '.lg-chip{position:relative;display:flex;align-items:center;gap:14px;padding:16px 20px 16px 16px;border-radius:20px;background:linear-gradient(180deg,rgba(255,255,255,.12),rgba(255,255,255,.06));border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 20px 40px -20px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.12);min-width:0}' +
     '.lg-chip .ic svg{width:22px;height:22px}.lg-chip .ic{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;color:var(--c);background:color-mix(in srgb,var(--c) 18%,transparent);border:1px solid color-mix(in srgb,var(--c) 35%,transparent)}' +
     '.lg-chip b{display:block;font-size:16.5px;color:#fff;font-weight:600}.lg-chip small{display:block;font-size:13.5px;color:#a8b6d6;margin-top:2px}' +
     '.lg-chip em{margin-left:auto;font-style:normal;font-size:12px;font-weight:700;padding:4px 10px;border-radius:99px}.lg-live{color:#4ade80;background:rgba(74,222,128,.14)}.lg-amt{color:#fbbf24;background:rgba(251,191,36,.14)}' +
-    '.lg-chip.c1{left:0;top:0;animation:lgUp .8s cubic-bezier(.2,.7,.2,1) both .25s}' +
-    '.lg-chip.c2{left:40px;top:104px;animation:lgUp .8s cubic-bezier(.2,.7,.2,1) both .4s}' +
-    '.lg-chip.c3{left:14px;top:208px;animation:lgUp .8s cubic-bezier(.2,.7,.2,1) both .55s}' +
-    '.lg-spark{position:absolute;right:0;top:18px;width:265px;padding:16px 18px 12px;border-radius:22px;background:linear-gradient(160deg,rgba(255,255,255,.13),rgba(255,255,255,.04) 60%);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:0 30px 60px -28px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,255,255,.14);animation:lgUp .8s cubic-bezier(.2,.7,.2,1) both .7s;overflow:hidden}' +
+    '.lg-chip.c1{animation:lgUp .8s cubic-bezier(.2,.7,.2,1) both .25s}' +
+    '.lg-chip.c2{animation:lgUp .8s cubic-bezier(.2,.7,.2,1) both .4s}' +
+    '.lg-chip.c3{animation:lgUp .8s cubic-bezier(.2,.7,.2,1) both .55s}' +
+    '.lg-spark{position:relative;display:flex;flex-direction:column;padding:20px 22px 14px;border-radius:22px;background:linear-gradient(160deg,rgba(255,255,255,.13),rgba(255,255,255,.04) 60%);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:0 30px 60px -28px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,255,255,.14);animation:lgUp .8s cubic-bezier(.2,.7,.2,1) both .7s;overflow:hidden}' +
     '.lg-spark:before{content:"";position:absolute;inset:-40% -20% auto auto;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle,rgba(58,155,255,.35),transparent 70%);pointer-events:none}' +
-    '.lg-sh{position:relative;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}.lg-sh b{display:block;font:600 22px var(--display);color:#fff;letter-spacing:-.01em}.lg-sh small{display:block;font-size:12.5px;color:#a8b6d6;margin-top:1px}' +
+    '.lg-sh{position:relative;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}.lg-sh b{display:block;font:600 26px var(--display);color:#fff;letter-spacing:-.01em}.lg-sh small{display:block;font-size:12.5px;color:#a8b6d6;margin-top:1px}' +
     '.lg-sh .lg-live{display:inline-flex;align-items:center;gap:6px;font-style:normal;font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:99px;color:#4ade80;background:rgba(74,222,128,.14)}.lg-sh .lg-live i{width:6px;height:6px;border-radius:50%;background:#4ade80;animation:lgPing 2s infinite}' +
-    '.lg-spark svg{position:relative;width:100%;height:104px;display:block;overflow:visible}.lg-gl line{stroke:rgba(255,255,255,.08);stroke-dasharray:3 5}' +
+    '.lg-spark svg{position:relative;width:100%;flex:1;min-height:150px;height:auto;display:block;overflow:visible}.lg-gl line{stroke:rgba(255,255,255,.08);stroke-dasharray:3 5}' +
     '.lg-bars rect{fill:rgba(140,196,255,.16)}' +
     '.lg-ax{position:relative;display:flex;justify-content:space-between;margin-top:6px;font-size:10.5px;font-weight:600;letter-spacing:.04em;color:#7f8fb3}' +
     '@keyframes lgPing{70%{box-shadow:0 0 0 8px rgba(74,222,128,0)}100%{box-shadow:0 0 0 0 rgba(74,222,128,0)}}' +
@@ -2025,7 +2025,7 @@ function renderLogin(msg){
     '.lg-ring{position:relative;width:54px;height:54px;border-radius:50%;display:grid;place-items:center;background:#fff;box-shadow:0 8px 24px -10px rgba(29,124,242,.5)}' +
     '.lg-ring:before{content:"";position:absolute;inset:-3px;border-radius:50%;background:conic-gradient(from 0deg,rgba(59,130,246,0),#1d7cf2 140deg,#5bb0ff 220deg,rgba(59,130,246,0) 300deg);-webkit-mask:radial-gradient(circle,transparent 60%,#000 61%);mask:radial-gradient(circle,transparent 60%,#000 61%);animation:spin 1s linear infinite}' +
     '.lg-ring img{width:26px;height:26px;object-fit:contain}' +
-    '@media (max-width:1430px){.lg-spark{display:none}}' +
+    '@media (max-width:1320px){.lg-stack{grid-template-columns:330px}.lg-spark{display:none}}' +
     '@media (max-width:1060px){.lg{grid-template-columns:minmax(0,1fr) minmax(420px,1fr)}.lg-pitch h2{font-size:36px}.lg-stack{display:none}.lg-pitch{margin-bottom:auto}}' +
     '@media (max-width:760px){.lg{grid-template-columns:1fr}.lg-side{display:none}.lg-main{min-height:100vh;background:none;box-shadow:none;padding:28px 16px;animation:none}.lg-main:before{display:none}' +
       '.lg-card{width:min(420px,100%);padding:34px 28px 24px;border-radius:26px;background:#fff;box-shadow:0 40px 80px -30px rgba(2,6,23,.8)}.lg-card h1{font-size:26px;margin-top:26px}.lg-cover{inset:0}.lg-pow{position:static;margin-top:20px;color:#8fa2cc}.lg-pow b{color:#c9d8ff}}' +
