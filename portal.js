@@ -1856,33 +1856,134 @@ document.addEventListener('keydown', e => {
 function toast(m){ const t = document.createElement('div'); t.className = 'toast'; t.textContent = m; document.body.appendChild(t); setTimeout(() => t.remove(), 3200); }
 
 /* ---------- sign in / out ---------- */
+/* The sign-in page: a split screen on wide screens (a living aurora with a glimpse of the dashboard on
+   the left, the sign-in card on the right), one glass card over the aurora on phones. */
+const LG_IC = {
+  mail: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18v12H3zM3 7l9 6 9-6"/></svg>',
+  lock: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 11h12v10H6zM8 11V7a4 4 0 0 1 8 0v4"/></svg>',
+  eye: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+  eyeOff: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18M10.6 5.1A10.9 10.9 0 0 1 12 5c7 0 11 7 11 7a18 18 0 0 1-3.2 3.9M6.6 6.6A18 18 0 0 0 1 12s4 7 11 7a10.6 10.6 0 0 0 5.4-1.4M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>',
+  arrow: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
+  shield: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>',
+  form: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13h8M8 17h5"/></svg>',
+  phone: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>',
+  cal: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v15H4zM4 10h16M8 3v4M16 3v4"/></svg>'
+};
+function lgShell(card){
+  return '<div class="lg">' +
+    '<div class="lg-aur" aria-hidden="true"><i class="a1"></i><i class="a2"></i><i class="a3"></i><i class="a4"></i><div class="lg-grid"></div><div class="lg-noise"></div></div>' +
+    '<section class="lg-side" aria-hidden="true"><img class="lg-wlogo" src="img/easyleads-logo-white.png" alt="">' +
+      '<div class="lg-pitch"><span class="lg-eyebrow"><i></i>Your client portal</span><h2>Every lead, call and booking, <em>in one place.</em></h2>' +
+      '<p>See who reached out, where they came from and what happened next, live, with your whole team.</p></div>' +
+      '<div class="lg-stack">' +
+        '<div class="lg-chip c1"><span class="ic" style="--c:#5bb0ff">' + LG_IC.form + '</span><div><b>New lead</b><small>Contact form · just now</small></div><em class="lg-live">Live</em></div>' +
+        '<div class="lg-chip c2"><span class="ic" style="--c:#34d399">' + LG_IC.phone + '</span><div><b>Call answered</b><small>From Google Ads · 4 min</small></div></div>' +
+        '<div class="lg-chip c3"><span class="ic" style="--c:#fbbf24">' + LG_IC.cal + '</span><div><b>Booking confirmed</b><small>Tomorrow · 10:30 a.m.</small></div><em class="lg-amt">Won</em></div>' +
+        '<div class="lg-spark"><svg viewBox="0 0 220 60" preserveAspectRatio="none"><defs><linearGradient id="lgsg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#5bb0ff" stop-opacity=".45"/><stop offset="1" stop-color="#5bb0ff" stop-opacity="0"/></linearGradient></defs><path d="M0 48 C20 44 30 30 50 34 S80 50 100 36 S135 12 155 20 S190 30 220 8 V60 H0Z" fill="url(#lgsg)"/><path class="ln" d="M0 48 C20 44 30 30 50 34 S80 50 100 36 S135 12 155 20 S190 30 220 8" fill="none" stroke="#8cc8ff" stroke-width="2.2" stroke-linecap="round"/></svg><div><b>Leads</b><small>updated live, every day</small></div></div>' +
+      '</div><div class="lg-foot">© ' + new Date().getFullYear() + ' ' + esc(BRAND) + ' · Private and secure</div></section>' +
+    '<main class="lg-main">' + card + '<div class="lg-pow">Powered by <b>' + esc(BRAND) + '</b></div></main></div>';
+}
 function renderLogin(msg){
-  app.innerHTML = '<div class="login"><form class="login-card" novalidate><div class="brandmark"><img src="img/easyleads-logo.png" alt="' + esc(BRAND) + '"></div>' +
-    '<h1>Welcome back</h1><p>Sign in to see your leads, calls and bookings.</p>' +
-    '<div class="fld"><label for="em">Email</label><input id="em" type="email" autocomplete="username" required></div>' +
-    '<div class="fld"><label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" required></div>' +
-    '<button class="btn go big" type="submit">Sign in</button><div class="msg' + (msg ? ' err' : '') + '" role="alert">' + esc(msg || '') + '</div>' +
-    '<div class="foot">Need help or forgot your password? Contact your Easyleads team.</div></form><div class="login-side">Powered by ' + esc(BRAND) + '</div></div>';
+  app.innerHTML = lgShell('<form class="lg-card" novalidate><div class="lg-logo"><img src="img/easyleads-logo.png" alt="' + esc(BRAND) + '"></div>' +
+    '<h1>Welcome back</h1><p class="lg-sub">Sign in to see your leads, calls and bookings.</p>' +
+    '<div class="lg-fld"><label for="em">Email</label><div class="lg-in"><span class="lg-li">' + LG_IC.mail + '</span><input id="em" type="email" autocomplete="username" placeholder="you@company.com" required></div></div>' +
+    '<div class="lg-fld"><label for="pw">Password</label><div class="lg-in"><span class="lg-li">' + LG_IC.lock + '</span><input id="pw" type="password" autocomplete="current-password" placeholder="Your password" required><button type="button" class="lg-eye" data-eye aria-label="Show password" title="Show password">' + LG_IC.eye + '</button></div><div class="lg-caps" hidden>Caps Lock is on</div></div>' +
+    '<button class="lg-go" type="submit"><span>Sign in</span>' + LG_IC.arrow + '</button><div class="msg' + (msg ? ' err' : '') + '" role="alert">' + esc(msg || '') + '</div>' +
+    '<div class="lg-sec">' + LG_IC.shield + 'Secure, encrypted sign-in</div>' +
+    '<div class="lg-help">Need help or forgot your password? <b>Contact your Easyleads team.</b></div></form>');
   const f = app.querySelector('form');
+  const pw = f.querySelector('#pw'), eye = f.querySelector('[data-eye]'), caps = f.querySelector('.lg-caps');
+  eye.addEventListener('click', () => { const show = pw.type === 'password'; pw.type = show ? 'text' : 'password'; eye.innerHTML = show ? LG_IC.eyeOff : LG_IC.eye; eye.setAttribute('aria-label', show ? 'Hide password' : 'Show password'); eye.title = eye.getAttribute('aria-label'); pw.focus(); });
+  const capsChk = e => { if (e.getModifierState) caps.hidden = !e.getModifierState('CapsLock'); };
+  pw.addEventListener('keyup', capsChk); pw.addEventListener('keydown', capsChk); pw.addEventListener('blur', () => { caps.hidden = true; });
+  /* the aurora follows the pointer, a little */
+  const lg = app.querySelector('.lg');
+  lg.addEventListener('pointermove', e => { const r = lg.getBoundingClientRect(); lg.style.setProperty('--mx', ((e.clientX - r.left) / r.width * 100).toFixed(1) + '%'); lg.style.setProperty('--my', ((e.clientY - r.top) / r.height * 100).toFixed(1) + '%'); });
   let busy = false;
   f.addEventListener('submit', async e => {
     e.preventDefault();
     if (busy) return;
     const btn = f.querySelector('button[type=submit]'), m = f.querySelector('.msg');
-    const em = f.querySelector('#em').value.trim(), pw = f.querySelector('#pw').value;
-    if (!em || !pw){ m.textContent = 'Enter your email and password.'; m.className = 'msg err'; return; }
+    const em = f.querySelector('#em').value.trim(), pv = pw.value;
+    if (!em || !pv){ m.textContent = 'Enter your email and password.'; m.className = 'msg err'; f.classList.remove('shake'); void f.offsetWidth; f.classList.add('shake'); return; }
     busy = true; btn.disabled = true; m.textContent = ''; m.className = 'msg';
-    const cover = document.createElement('div'); cover.className = 'cover'; cover.innerHTML = '<span class="spin lg"></span><span>Signing you in…</span>';
+    const cover = document.createElement('div'); cover.className = 'cover lg-cover'; cover.innerHTML = '<span class="lg-ring"><img src="img/easyleads-mark.png" alt=""></span><span>Signing you in…</span>';
     f.appendChild(cover);
     try{
-      const j = await api('portalLogin', {email: em, password: pw});
+      const j = await api('portalLogin', {email: em, password: pv});
       if (j.error) throw new Error(j.error);
       cover.querySelector('span:last-child').textContent = 'Loading your dashboard…';
       startWith(j.session, j.me);
-    }catch(err){ cover.remove(); m.textContent = err.message; m.className = 'msg err'; btn.disabled = false; busy = false; f.querySelector('#pw').select(); }
+    }catch(err){ cover.remove(); m.textContent = err.message; m.className = 'msg err'; btn.disabled = false; busy = false; f.classList.remove('shake'); void f.offsetWidth; f.classList.add('shake'); pw.select(); }
   });
   f.querySelector('#em').focus();
 }
+(function(){ if (document.getElementById('lg-css')) return; const st = document.createElement('style'); st.id = 'lg-css';
+  st.textContent =
+    '.lg{--mx:30%;--my:40%;position:relative;min-height:100vh;display:grid;grid-template-columns:minmax(0,1.08fr) minmax(420px,.92fr);background:#071027;overflow:hidden;font-family:var(--ui)}' +
+    '.lg-aur{position:absolute;inset:0;overflow:hidden;pointer-events:none;background:radial-gradient(900px 600px at var(--mx) var(--my),rgba(29,124,242,.22),transparent 60%),linear-gradient(160deg,#0b1a45 0%,#0a1638 45%,#071027 100%)}' +
+    '.lg-aur i{position:absolute;border-radius:50%;filter:blur(70px);opacity:.75;mix-blend-mode:screen;will-change:transform}' +
+    '.lg-aur .a1{width:620px;height:620px;left:-140px;top:-180px;background:radial-gradient(circle,#1d7cf2 0%,rgba(29,124,242,0) 70%);animation:lgA 18s ease-in-out infinite alternate}' +
+    '.lg-aur .a2{width:520px;height:520px;left:28%;bottom:-220px;background:radial-gradient(circle,#1d7cf2 0%,rgba(29,124,242,0) 70%);animation:lgB 22s ease-in-out infinite alternate}' +
+    '.lg-aur .a3{width:420px;height:420px;left:40%;top:-120px;background:radial-gradient(circle,#5bb0ff 0%,rgba(91,176,255,0) 70%);opacity:.45;animation:lgC 26s ease-in-out infinite alternate}' +
+    '.lg-aur .a4{width:380px;height:380px;right:-120px;bottom:10%;background:radial-gradient(circle,#2b88f5 0%,rgba(43,136,245,0) 70%);opacity:.35;animation:lgA 30s ease-in-out infinite alternate-reverse}' +
+    '@keyframes lgA{to{transform:translate(120px,90px) scale(1.12)}}@keyframes lgB{to{transform:translate(-110px,-80px) scale(1.18)}}@keyframes lgC{to{transform:translate(-80px,120px) scale(.9)}}' +
+    '.lg-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);background-size:56px 56px;-webkit-mask-image:radial-gradient(ellipse 75% 70% at 30% 45%,#000 30%,transparent 80%);mask-image:radial-gradient(ellipse 75% 70% at 30% 45%,#000 30%,transparent 80%)}' +
+    '.lg-noise{position:absolute;inset:0;opacity:.08;background-image:url("data:image/svg+xml;utf8,<svg xmlns=%27http://www.w3.org/2000/svg%27 width=%27140%27 height=%27140%27><filter id=%27n%27><feTurbulence type=%27fractalNoise%27 baseFrequency=%27.9%27 numOctaves=%272%27/></filter><rect width=%27100%25%27 height=%27100%25%27 filter=%27url(%23n)%27/></svg>")}' +
+    '.lg-side{position:relative;z-index:1;display:flex;flex-direction:column;padding:44px clamp(32px,5vw,72px);color:#e8efff}' +
+    '.lg-wlogo{height:30px;width:auto;align-self:flex-start;opacity:.95}' +
+    '.lg-pitch{margin-top:auto;max-width:520px;animation:lgUp .8s cubic-bezier(.2,.7,.2,1) both .05s}' +
+    '.lg-eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#a9c4ff;padding:6px 12px 6px 10px;border-radius:99px;background:rgba(120,160,255,.10);border:1px solid rgba(140,175,255,.22)}' +
+    '.lg-eyebrow i{width:7px;height:7px;border-radius:50%;background:#4ade80;box-shadow:0 0 0 0 rgba(74,222,128,.6);animation:lgPing 2s infinite}' +
+    '@keyframes lgPing{70%{box-shadow:0 0 0 8px rgba(74,222,128,0)}100%{box-shadow:0 0 0 0 rgba(74,222,128,0)}}' +
+    '.lg-pitch h2{font:600 clamp(30px,3.3vw,46px)/1.12 var(--display);letter-spacing:-.025em;margin:18px 0 14px;color:#fff}' +
+    '.lg-pitch h2 em{font-style:normal;background:linear-gradient(90deg,#5bb0ff,#2b8cff 55%,#8cc8ff);-webkit-background-clip:text;background-clip:text;color:transparent}' +
+    '.lg-pitch p{font-size:15.5px;line-height:1.6;color:#b8c6e6;margin:0;max-width:440px}' +
+    '.lg-stack{position:relative;margin:38px 0 auto;height:250px;max-width:640px}' +
+    '.lg-chip{position:absolute;display:flex;align-items:center;gap:12px;padding:12px 16px 12px 12px;border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,.12),rgba(255,255,255,.06));border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 20px 40px -20px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.12);min-width:250px}' +
+    '.lg-chip .ic{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;color:var(--c);background:color-mix(in srgb,var(--c) 18%,transparent);border:1px solid color-mix(in srgb,var(--c) 35%,transparent)}' +
+    '.lg-chip b{display:block;font-size:14px;color:#fff;font-weight:600}.lg-chip small{display:block;font-size:12px;color:#a8b6d6;margin-top:1px}' +
+    '.lg-chip em{margin-left:auto;font-style:normal;font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px}.lg-live{color:#4ade80;background:rgba(74,222,128,.14)}.lg-amt{color:#fbbf24;background:rgba(251,191,36,.14)}' +
+    '.lg-chip.c1{left:0;top:0;animation:lgUp .8s cubic-bezier(.2,.7,.2,1) both .25s,lgFloat 7s ease-in-out infinite 1s}' +
+    '.lg-chip.c2{left:90px;top:84px;animation:lgUp .8s cubic-bezier(.2,.7,.2,1) both .4s,lgFloat 8s ease-in-out infinite 1.6s}' +
+    '.lg-chip.c3{left:24px;top:168px;animation:lgUp .8s cubic-bezier(.2,.7,.2,1) both .55s,lgFloat 9s ease-in-out infinite 2.2s}' +
+    '.lg-spark{position:absolute;left:410px;top:10px;width:190px;padding:14px 16px 12px;border-radius:18px;background:linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.04));border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 20px 40px -20px rgba(0,0,0,.6);animation:lgUp .8s cubic-bezier(.2,.7,.2,1) both .7s,lgFloat 10s ease-in-out infinite 2.8s}' +
+    '.lg-spark svg{width:100%;height:56px;display:block}.lg-spark .ln{stroke-dasharray:400;stroke-dashoffset:400;animation:lgDraw 1.6s ease-out forwards 1s}' +
+    '.lg-spark b{font:600 20px var(--display);color:#fff}.lg-spark small{display:block;font-size:12px;color:#a8b6d6}' +
+    '@keyframes lgDraw{to{stroke-dashoffset:0}}@keyframes lgFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}@keyframes lgUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}' +
+    '.lg-foot{font-size:12px;color:#7f8fb3}' +
+    '.lg-main{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 28px;background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.01));border-left:1px solid rgba(255,255,255,.07)}' +
+    '.lg-card{position:relative;width:min(420px,100%);padding:38px 36px 28px;border-radius:28px;background:linear-gradient(#fff,#fff) padding-box,linear-gradient(160deg,rgba(255,255,255,.9),rgba(140,196,255,.6) 40%,rgba(29,124,242,.5)) border-box;border:1px solid transparent;box-shadow:0 50px 100px -40px rgba(2,6,23,.75),0 0 0 8px rgba(255,255,255,.04);animation:lgUp .7s cubic-bezier(.2,.7,.2,1) both;overflow:hidden}' +
+    '.lg-card:before{content:"";position:absolute;inset:0 0 auto 0;height:140px;background:radial-gradient(400px 140px at 20% -20%,rgba(29,124,242,.10),transparent 70%);pointer-events:none}' +
+    '.lg-logo img{height:34px;width:auto;display:block}' +
+    '.lg-card h1{font:600 26px var(--display);letter-spacing:-.02em;margin:26px 0 6px;color:#0b1220}' +
+    '.lg-sub{color:#5b6476;font-size:14px;margin:0 0 26px;line-height:1.55}' +
+    '.lg-fld{margin-bottom:16px}.lg-fld label{display:block;font-size:12.5px;font-weight:600;color:#30384a;margin:0 0 7px}' +
+    '.lg-in{position:relative;display:flex;align-items:center}' +
+    '.lg-in input{width:100%;height:50px;border:1px solid #e3e7ef;border-radius:14px;background:#f8faff;padding:0 46px 0 44px;font:500 14.5px var(--ui);color:#0b1220;transition:border-color .2s,box-shadow .2s,background .2s;box-sizing:border-box}' +
+    '.lg-in input::placeholder{color:#a2aabb;font-weight:400}' +
+    '.lg-in input:hover{border-color:#d3d9e6}.lg-in input:focus{outline:none;background:#fff;border-color:#1d7cf2;box-shadow:0 0 0 4px rgba(29,124,242,.14),0 6px 18px -10px rgba(29,124,242,.6)}' +
+    '.lg-li{position:absolute;left:15px;color:#98a2b5;display:grid;pointer-events:none;transition:color .2s}.lg-in:focus-within .lg-li{color:#1d7cf2}' +
+    '.lg-eye{position:absolute;right:8px;width:34px;height:34px;border:0;background:none;border-radius:10px;color:#98a2b5;cursor:pointer;display:grid;place-items:center;transition:background .15s,color .15s}.lg-eye:hover{background:#eef5ff;color:#1d7cf2}' +
+    '.lg-caps{font-size:12px;color:#b86e00;margin-top:6px}' +
+    '.lg-go{position:relative;width:100%;height:52px;margin-top:8px;border:0;border-radius:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px;font:600 15px var(--ui);color:#fff;background:linear-gradient(135deg,#3a9bff 0%,#1d7cf2 50%,#1565d8 100%);box-shadow:0 14px 30px -12px rgba(29,124,242,.75),inset 0 1px 0 rgba(255,255,255,.25);overflow:hidden;transition:transform .2s,box-shadow .2s,filter .2s}' +
+    '.lg-go:after{content:"";position:absolute;top:0;left:-60%;width:40%;height:100%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.35),transparent);transform:skewX(-20deg);transition:left .7s ease}' +
+    '.lg-go:hover{transform:translateY(-1px);box-shadow:0 20px 36px -14px rgba(29,124,242,.85),inset 0 1px 0 rgba(255,255,255,.25)}.lg-go:hover:after{left:130%}.lg-go:active{transform:translateY(0);filter:brightness(.97)}' +
+    '.lg-go svg{transition:transform .2s}.lg-go:hover svg{transform:translateX(3px)}.lg-go:disabled{opacity:.7;cursor:default}' +
+    '.lg-card .msg{min-height:18px;margin-top:10px;font-size:13px;text-align:center}' +
+    '.lg-sec{display:flex;align-items:center;justify-content:center;gap:7px;font-size:12px;font-weight:500;color:#5f8a75;margin-top:6px}' +
+    '.lg-help{margin-top:22px;padding-top:18px;border-top:1px solid #eef0f5;text-align:center;font-size:12.5px;line-height:1.5;color:#8a93a5}.lg-help b{color:#3b4760;font-weight:600}' +
+    '.lg-pow{margin-top:22px;font-size:12.5px;color:#8fa2cc;letter-spacing:.01em}.lg-pow b{color:#c9d8ff;font-weight:600}' +
+    '.lg-card.shake{animation:lgShake .4s cubic-bezier(.36,.07,.19,.97)}@keyframes lgShake{20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}' +
+    '.lg-cover{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;border-radius:28px;background:rgba(255,255,255,.92);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);font:600 14px var(--ui);color:#30384a;animation:lgFade .25s ease both}@keyframes lgFade{from{opacity:0}to{opacity:1}}' +
+    '.lg-ring{position:relative;width:54px;height:54px;border-radius:50%;display:grid;place-items:center;background:#fff;box-shadow:0 8px 24px -10px rgba(29,124,242,.5)}' +
+    '.lg-ring:before{content:"";position:absolute;inset:-3px;border-radius:50%;background:conic-gradient(from 0deg,rgba(59,130,246,0),#1d7cf2 140deg,#5bb0ff 220deg,rgba(59,130,246,0) 300deg);-webkit-mask:radial-gradient(circle,transparent 60%,#000 61%);mask:radial-gradient(circle,transparent 60%,#000 61%);animation:spin 1s linear infinite}' +
+    '.lg-ring img{width:26px;height:26px;object-fit:contain}' +
+    '@media (max-width:1320px){.lg-spark{display:none}}' +
+    '@media (max-width:980px){.lg{grid-template-columns:1fr}.lg-side{display:none}.lg-main{min-height:100vh;background:none;border:0}.lg-card{box-shadow:0 40px 80px -30px rgba(2,6,23,.8)}}' +
+    '@media (max-width:480px){.lg-card{padding:30px 22px 22px;border-radius:24px}.lg-main{padding:24px 14px}}' +
+    '@media (prefers-reduced-motion:reduce){.lg *,.lg *:before,.lg *:after{animation:none!important;transition:none!important}}';
+  document.head.appendChild(st); })();
 let signingOut = false;
 function signOut(silent){
   if (signingOut) return;
@@ -1902,7 +2003,7 @@ function startWith(session, me){
   S.domain = me.clients.some(c => c.domain === d) ? d : (me.clients[0] || {}).domain || '';
   S.period = ls.get('el_period', '30');
   if (!PERIODS.some(p => p[0] === S.period)) S.period = '30';
-  if (!me.clients.length){ app.innerHTML = '<div class="login"><div class="login-card"><div class="brandmark"><img src="img/easyleads-logo.png" alt=""></div><h1>Almost there</h1><p>Your account isn’t linked to a business yet. Your Easyleads team will let you know when it’s ready.</p><button class="btn" type="button" id="out">Sign out</button></div></div>'; app.querySelector('#out').addEventListener('click', () => signOut()); return; }
+  if (!me.clients.length){ app.innerHTML = lgShell('<div class="lg-card"><div class="lg-logo"><img src="img/easyleads-logo.png" alt=""></div><h1>Almost there</h1><p class="lg-sub">Your account isn’t linked to a business yet. Your Easyleads team will let you know when it’s ready.</p><button class="lg-go" type="button" id="out"><span>Sign out</span></button></div>'); app.querySelector('#out').addEventListener('click', () => signOut()); return; }
   renderApp();
 }
 /* Fresh numbers every few minutes while the page is open. */
