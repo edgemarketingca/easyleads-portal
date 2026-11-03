@@ -146,6 +146,12 @@ const fresh = kind => { const domain = S.domain; setTimeout(() => { try{ window.
 const ONE_K = {appts: 1, gsc: 1, ai: 1};
 const shape = (kind, j, cur, prev) => { const all = j.rows || []; return {all, rows: ONE_K[kind] ? all : all.filter(x => inR(x, cur)), prev: ONE_K[kind] ? [] : all.filter(x => inR(x, prev)), extra: j.extra || null, at: j.at}; };
 /* One request covers this period and the one before, so every widget can show the change. */
+/* What is already loaded for a kind of data, to draw at once (no loading flash); ok = still fresh. */
+function getNow(kind, p){
+  const cur = range(p), prev = ONE_K[kind] ? cur : prevRange(p);
+  const c = S.cache[[S.domain, kind, iso(prev.s), iso(cur.e)].join('|')];
+  return c && c.v !== undefined ? {v: c.v, ok: c.vp === c.p && Date.now() - c.at < 4 * 60000} : null;
+}
 function get(kind, p){
   const cur = range(p), prev = ONE_K[kind] ? cur : prevRange(p);
   const k = [S.domain, kind, iso(prev.s), iso(cur.e)].join('|');
@@ -159,7 +165,7 @@ function get(kind, p){
   const live = api('portalData', body).then(check).then(j => ({j, more: j.stale ? api('portalData', Object.assign({fresh: 1}, body)).then(check) : null}));
   live.catch(() => {});
   let shown = '';
-  const swap = j => { const sig = keep(j); if (sig !== shown){ shown = sig; S.cache[k] = {at: Date.now(), p: Promise.resolve(shape(kind, j, cur, prev))}; fresh(kind); } };
+  const swap = j => { const sig = keep(j); if (sig !== shown){ shown = sig; const val = shape(kind, j, cur, prev), p2 = Promise.resolve(val); S.cache[k] = {at: Date.now(), p: p2, v: val, vp: p2}; fresh(kind); } };
   const pr = kv.get(lk).then(had => {
     const mine = had && had.j && had.sig && Date.now() - had.at < 4 * day ? had : null;
     if (mine){
@@ -169,7 +175,9 @@ function get(kind, p){
     }
     return live.then(x => { shown = keep(x.j); if (x.more) x.more.then(swap).catch(() => {}); return shape(kind, x.j, cur, prev); });
   });
-  S.cache[k] = {at: Date.now(), p: pr};
+  const old = S.cache[k];
+  S.cache[k] = {at: Date.now(), p: pr, v: old ? old.v : undefined, vp: null};
+  pr.then(v => { const c2 = S.cache[k]; if (c2 && c2.p === pr){ c2.v = v; c2.vp = pr; } }, () => {});
   pr.catch(() => { if (S.cache[k] && S.cache[k].p === pr) delete S.cache[k]; });
   return pr;
 }
@@ -1371,6 +1379,8 @@ const MINH = 160, MAXH = 1600;
 
 function drawGrid(dash){
   const grid = app.querySelector('[data-grid]');
+  /* Redrawn on the same business and period (switching tabs, an undo, a widget moved…): no entrance animation, so nothing blinks. */
+  const gsig = S.domain + '|' + S.period, calm = gsig === drawGrid.last; drawGrid.last = gsig;
   grid.innerHTML = '';
   const shown = arranging() ? dash.items : dash.items.filter(visIt);
   if (!shown.length){ grid.innerHTML = '<div class="w" style="--c:12"><div class="empty">This dashboard is empty.' + (canEdit() ? ' Click <b>Customize</b>, then <b>Add widget</b>.' : '') + '</div></div>'; return; }
@@ -1381,6 +1391,7 @@ function drawGrid(dash){
     el.className = 'w' + (it.t === 'note' ? ' w-note' : '') + (it.h ? ' fixed' : '');
     el.style.setProperty('--c', cols); el.style.setProperty('--t', def.tint); if (it.h) el.style.setProperty('--h', it.h + 'px');
     el.dataset.t = it.t; el.dataset.id = it.id;
+    if (calm) el.classList.add('no-anim'); else setTimeout(() => el.classList.add('no-anim'), 900);
     const title = it.t === 'note' ? (it.title || 'Summary') : (it.title || def.t), dsc = srcOf() === 'site' && def.ds ? def.ds : def.d;
     el.innerHTML = '<div class="wh" data-grip><div class="wic">' + ic(def.ic, 19) + '</div><div class="tt"><h3>' + esc(title) + '</h3>' + (it.t === 'note' ? '' : '<div class="d" title="' + esc(dsc) + '">' + esc(dsc) + '</div>') + '</div><div class="wtools">' +
       '<span class="grip" title="Drag to move">' + ic('move', 15) + '</span>' +
@@ -1393,15 +1404,24 @@ function drawGrid(dash){
     const body = el.querySelector('[data-body]');
     const needs = needsOf(it);
     if (!visIt(it)){ body.innerHTML = errHtml({code: 'hidden'}); el.style.opacity = '.6'; }
-    else { const load = () => Promise.all(needs.filter(k => kOn(k) !== null ? kOn(k) : (srcOf() === 'easyleads' || SITE_K[k])).map(k => get(k).then(v => [k, v], e => [k, null, e]))).then(res => {
+    else { let drawn = null;
+      const load = () => {
+        const ks = needs.filter(k => kOn(k) !== null ? kOn(k) : (srcOf() === 'easyleads' || SITE_K[k]));
+        /* Draw straight away from what is already loaded; only fetch (and redraw if it changed) when that is out of date. */
+        const now = ks.map(k => [k, getNow(k)]);
+        if (now.every(x => x[1])){ fin(now.map(x => [x[0], x[1].v])); if (now.every(x => x[1].ok)) return; }
+        return Promise.all(ks.map(k => get(k).then(v => [k, v], e => [k, null, e]))).then(res => { if (drawn && res.length === drawn.length && res.every((r, i) => r[1] && r[1] === drawn[i][1])) return; fin(res); });
+      };
+      const fin = res => {
       if (!body.isConnected) return;
+      drawn = res;
       const D = {}, errs = [];
       res.forEach(r => { if (r[1]) D[r[0]] = r[1]; else errs.push(r[2]); });
       const hard = it.t !== 'note' && needs.length && (errs.length === res.length || (!def.soft && errs.length));
       if (hard){ const ec = errs[0] && errs[0].code; if (!arranging() && (ec === 'scope' || ec === 'notavailable')){ if (ro) ro.unobserve(el); el.remove(); return; } body.innerHTML = errHtml(errs[0]); return; }
       try{ body.innerHTML = ''; def.draw(body, D, it); }catch(e){ console.warn(e); body.innerHTML = errHtml(e); }
       fitRow(el);
-    }); load();
+    }; load();
       /* Newer numbers for this widget arrived: draw them in place (not while arranging the dashboard). */
       const onFresh = e => { if (!body.isConnected){ window.removeEventListener('el-fresh', onFresh); return; } const x = e.detail || {}; if (x.domain === S.domain && needs.indexOf(x.kind) > -1 && !arranging()) load(); };
       window.addEventListener('el-fresh', onFresh);
@@ -1900,13 +1920,20 @@ const OPEN_ST = ['contacted', 'quoted', 'booked'];
 const CRM = {};
 function crmFor(dom){
   dom = dom || S.domain;
-  const c = CRM[dom];
-  if (c && c.p && Date.now() - c.at < 60000) return c.p;
   const box = CRM[dom] = CRM[dom] || {};
-  const p = api('portalCrm', {session: S.session, domain: dom}).then(j => { if (j.error) throw new Error(j.error); box.data = j.crm || {}; box.v = Math.max(box.v || 0, j.at || 0); return box.data; });
-  box.at = Date.now(); box.p = p;
+  if (box.p && Date.now() - box.at < 60000) return box.p;
+  /* Already have it: answer with that straight away (no loading flash) and refresh quietly. */
+  const had = box.data ? JSON.stringify(box.data) : null;
+  const p = api('portalCrm', {session: S.session, domain: dom}).then(j => {
+    if (j.error) throw new Error(j.error);
+    box.data = j.crm || {}; box.v = Math.max(box.v || 0, j.at || 0); box.p = Promise.resolve(box.data);
+    if (had !== null && had !== JSON.stringify(box.data)) crmEmit(dom);
+    return box.data;
+  });
+  box.at = Date.now();
+  box.p = had !== null ? Promise.resolve(box.data) : p;
   p.catch(() => { if (box.p === p) box.p = null; });
-  return p;
+  return box.p;
 }
 const crmEmit = dom => document.dispatchEvent(new CustomEvent('el-crm', {detail: {domain: dom}}));
 /* The team check-in says when the CRM last changed; fetch it again only then. */
@@ -1960,7 +1987,8 @@ async function crmSave(key, set, o){
 /* Every client, built from all-time form leads (plus any newer rows the widget already has). */
 async function crmClients(extra){
   const dom = S.domain;
-  const [rows, crm, M] = await Promise.all([formsHistory().catch(() => []), crmFor(dom).catch(() => ({})), marksFor(dom).catch(() => ({}))]);
+  const tm = TEAM.dom === dom && TEAM.data && TEAM.data.marks;
+  const [rows, crm, M] = await Promise.all([formsHistory().catch(() => []), crmFor(dom).catch(() => ({})), tm ? tm : marksFor(dom).catch(() => ({}))]);
   const P = peopleOf((extra || []).concat(rows));
   return Object.keys(P).map(k => {
     const list = P[k], f = list[0], first = list[list.length - 1], r = crm[k] || {};
@@ -2005,6 +2033,7 @@ const dueOf = c => {
 const dueChip = c => { const u = dueOf(c); return u ? '<span class="cr-due ' + u.k + '">' + ic('clock', 11) + esc(u.label) + '</span>' : ''; };
 const stagePill = s => '<span class="cr-st" style="--c:' + STG[s][2] + '"><i></i>' + esc(STG[s][1]) + '</span>';
 const waitTxt = ms => ms < 36e5 ? Math.max(1, Math.round(ms / 6e4)) + ' min' : ms < 864e5 ? Math.round(ms / 36e5) + ' h' : Math.round(ms / 864e5) + ' days';
+function keepScroll(h, sel, fn){ const st = [...h.querySelectorAll(sel)].map(e => e.scrollTop); fn(); h.querySelectorAll(sel).forEach((e, i) => { if (st[i]) e.scrollTop = st[i]; }); }
 const crmMatch = (c, q) => !q || [c.name, c.email, c.phone, c.company, c.city, c.owner, c.form].join(' ').toLowerCase().indexOf(q.toLowerCase()) > -1;
 /* Repaint a widget when the CRM changes; wait while someone is typing in it. */
 function crmWire(h, paint){
@@ -2113,7 +2142,7 @@ function drawCrmBoard(h, D, it){
       });
     });
   };
-  const paint = async () => { try{ C = await crmClients(D.forms && D.forms.rows); }catch(e){ B.innerHTML = crmErr(e); return; } if (h.isConnected) render(); };
+  const paint = async () => { try{ C = await crmClients(D.forms && D.forms.rows); }catch(e){ B.innerHTML = crmErr(e); return; } if (h.isConnected) keepScroll(h, '.cr-cards', render); };
   paint(); crmWire(h, paint);
 }
 function edgeConfetti(el){
@@ -2195,7 +2224,7 @@ function drawCrmClients(h, D, it){
     const csv = [['Name', 'Email', 'Phone', 'Company', 'City', 'Stage', 'Value', 'Owner', 'Follow up', 'Requests', 'First seen', 'Latest', 'Came from', 'Latest note']].concat(L.map(c => [c.name, c.email, c.phone, c.company, c.city, STG[c.stage][1], c.value || '', c.owner, c.due, c.n, iso(c.first), iso(c.last), c.channel, c.notes.length ? c.notes[c.notes.length - 1].x : ''])).map(r => r.map(q).join(',')).join('\n');
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], {type: 'text/csv'})); a.download = 'clients-' + S.domain + '-' + iso(Date.now()) + '.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   });
-  const paint = async () => { try{ C = await crmClients(D.forms && D.forms.rows); }catch(e){ h.querySelector('[data-t]').innerHTML = crmErr(e); return; } if (h.isConnected) render(); };
+  const paint = async () => { try{ C = await crmClients(D.forms && D.forms.rows); }catch(e){ h.querySelector('[data-t]').innerHTML = crmErr(e); return; } if (h.isConnected) keepScroll(h, '.tbl-wrap', render); };
   paint(); crmWire(h, paint);
 }
 
@@ -2382,6 +2411,7 @@ function tabsReorder(L){
     '.ib-cr.ghost{opacity:0;padding:3px 9px;gap:5px;transition:opacity .2s}.ibrow:hover .ib-cr.ghost,.ib-cr.ghost:focus{opacity:1}.ib-crv{font-weight:700;color:#0f7a58}.ib-crw{color:var(--ink-3)}' +
     '.tab-dr{cursor:grab}.tab-drag{opacity:.35}.tab-ovl{box-shadow:inset 3px 0 0 #1d7cf2}.tab-ovr{box-shadow:inset -3px 0 0 #1d7cf2}' +
     '.toast.ut{display:flex;align-items:center;gap:12px;padding:8px 8px 8px 16px}.toast.ut button{display:inline-flex;align-items:center;gap:6px;border:0;background:rgba(255,255,255,.14);color:#fff;font:600 12.5px var(--ui);padding:6px 11px;border-radius:9px;cursor:pointer;transition:background .15s}.toast.ut button:hover{background:rgba(255,255,255,.26)}.toast.ut kbd{font:600 11px var(--ui);color:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.2);border-radius:6px;padding:2px 6px}.toast.out{opacity:0;transition:opacity .25s}' +
+    '.w.no-anim,.w.no-anim .fade-in,.w.no-anim .cr-card,.w.no-anim .facet .tr b,.w.no-anim .mk-chip,.w.no-anim .cr-funnel span{animation:none!important;transition:none}' +
     '.tab-x{display:inline-grid;place-items:center;width:18px;height:18px;margin-left:6px;margin-right:-4px;border-radius:50%;color:var(--ink-3);vertical-align:-3px;transition:background .15s,color .15s}.tab-x:hover{background:#fdecec;color:#c8352e}';
   document.head.appendChild(st); })();
 /* ---------- Undo: Ctrl+Z (⌘Z on a Mac), or the Undo button on the note that appears after a change ----------
