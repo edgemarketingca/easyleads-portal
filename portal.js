@@ -1883,11 +1883,10 @@ function lgShell(card){
           '<svg viewBox="0 0 400 180" preserveAspectRatio="none"><defs>' +
             '<linearGradient id="lgsa" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#3a9bff" stop-opacity=".55"/><stop offset=".6" stop-color="#1d7cf2" stop-opacity=".14"/><stop offset="1" stop-color="#1d7cf2" stop-opacity="0"/></linearGradient>' +
             '<linearGradient id="lgsl" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#5bb0ff"/><stop offset="1" stop-color="#bfe0ff"/></linearGradient>' +
-            '<linearGradient id="lgss" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".22"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>' +
             '<filter id="lgglow" x="-20%" y="-40%" width="140%" height="180%"><feGaussianBlur stdDeviation="3.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>' +
             '<g class="lg-gl"><line x1="0" x2="400" y1="40" y2="40"/><line x1="0" x2="400" y1="85" y2="85"/><line x1="0" x2="400" y1="130" y2="130"/></g>' +
             '<g class="lg-bars"></g><path class="ar" fill="url(#lgsa)"/><path class="ln" fill="none" stroke="url(#lgsl)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" filter="url(#lgglow)"/>' +
-            '<rect class="sw" x="-80" y="0" width="80" height="180" fill="url(#lgss)"/><circle class="pr" r="11" fill="#5bb0ff" opacity="0"/><circle class="pt" r="5.5" fill="#fff" stroke="#3a9bff" stroke-width="3" opacity="0"/></svg>' +
+            '<circle class="pr" r="11" fill="#5bb0ff" opacity="0"/><circle class="pt" r="5.5" fill="#fff" stroke="#3a9bff" stroke-width="3" opacity="0"/></svg>' +
           '<div class="lg-ax"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div></div>' +
       '</div><div class="lg-foot">© ' + new Date().getFullYear() + ' ' + esc(BRAND) + ' · Private and secure</div></section>' +
     '<main class="lg-main">' + card + '<div class="lg-pow">Powered by <b>' + esc(BRAND) + '</b></div></main></div>';
@@ -1897,7 +1896,7 @@ const LG_SHAPES = [[70, 62, 74, 52, 58, 40, 46, 28, 34, 16], [78, 66, 58, 64, 44
 function lgCurve(p){ let d = 'M' + p[0][0] + ' ' + p[0][1]; for (let i = 0; i < p.length - 1; i++){ const a = p[i - 1] || p[i], b = p[i], c = p[i + 1], e = p[i + 2] || c; d += ' C' + (b[0] + (c[0] - a[0]) / 6).toFixed(1) + ' ' + (b[1] + (c[1] - a[1]) / 6).toFixed(1) + ' ' + (c[0] - (e[0] - b[0]) / 6).toFixed(1) + ' ' + (c[1] - (e[1] - b[1]) / 6).toFixed(1) + ' ' + c[0] + ' ' + c[1]; } return d; }
 function lgChart(root){
   const el = root.querySelector('[data-lgchart]'); if (!el || !el.animate) return;
-  const ln = el.querySelector('.ln'), ar = el.querySelector('.ar'), pt = el.querySelector('.pt'), pr = el.querySelector('.pr'), sw = el.querySelector('.sw'), bars = el.querySelector('.lg-bars');
+  const ln = el.querySelector('.ln'), ar = el.querySelector('.ar'), pt = el.querySelector('.pt'), pr = el.querySelector('.pr'), bars = el.querySelector('.lg-bars');
   const still = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   let n = 0;
   const draw = () => {
@@ -1914,7 +1913,6 @@ function lgChart(root){
     ar.animate([{clipPath: 'inset(0 100% 0 0)', opacity: .4}, {clipPath: 'inset(0 0% 0 0)', opacity: 1}], {duration: 1300, easing: 'cubic-bezier(.3,.7,.2,1)', fill: 'both'});
     [...bars.children].forEach((b, i) => b.animate([{transform: 'scaleY(0)', opacity: 0}, {transform: 'scaleY(1)', opacity: 1}], {duration: 600, delay: 80 + i * 70, easing: 'cubic-bezier(.2,.7,.2,1)', fill: 'both'}));
     [bars].forEach(g => g.querySelectorAll('rect').forEach(r => { r.style.transformBox = 'fill-box'; r.style.transformOrigin = '50% 100%'; }));
-    sw.animate([{transform: 'translateX(0)'}, {transform: 'translateX(500px)'}], {duration: 1400, delay: 100, easing: 'ease-in-out', fill: 'both'});
     pt.animate([{opacity: 0, transform: 'scale(0)'}, {opacity: 1, transform: 'scale(1.25)'}, {opacity: 1, transform: 'scale(1)'}], {duration: 500, delay: 1150, easing: 'ease-out', fill: 'both'});
     pr.animate([{opacity: .55, transform: 'scale(.4)'}, {opacity: 0, transform: 'scale(2.4)'}], {duration: 1200, delay: 1300, easing: 'ease-out', fill: 'forwards'});
     [pt, pr].forEach(c => { c.style.transformBox = 'fill-box'; c.style.transformOrigin = 'center'; });
