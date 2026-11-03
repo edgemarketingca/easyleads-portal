@@ -600,12 +600,12 @@ function drawInbox(h, D, it){
       return '<div class="ibrow"><button class="card" type="button" data-i="' + i + '"><div class="av" style="background:' + hue(nm) + '">' + esc(initials(nm)) + '</div><div class="cb"><div class="ch"><b>' + esc(nm) + (function(){ const k = personKey(r), n = k && P[k] ? P[k].length : 0; return n > 1 ? '<span class="pp-badge" data-pk="' + esc(k) + '" title="This person has sent ' + n + ' submissions in total. Click to see them all.">' + ic('users', 12) + n + ' submissions</span>' : ''; })() + '</b><time>' + esc(fullDate(r.at)) + '</time></div>' +
         '<div class="cc">' + esc([r.email, r.phone].filter(Boolean).join(' · ') || r.company || '—') + '</div>' + (r.message ? '<div class="cm">' + esc(r.message) + '</div>' : '') +
         '<div class="tags"><span class="tag" title="' + esc(r.form) + '"><i style="background:#1d7cf2"></i>' + esc(formLabel(r.form)) + '</span>' + (city ? '<span class="tag loc">' + ic('pin', 12) + esc(city) + '</span>' : '') +
-        (g !== 'Not recorded' ? '<span class="tag"><i style="background:' + chColor(g) + '"></i>' + esc(r.channel) + '</span>' : '') + '</div><div class="ib-seen" data-seen="' + esc(r.id) + '"></div></div></button>' +
+        (g !== 'Not recorded' ? '<span class="tag"><i style="background:' + chColor(g) + '"></i>' + esc(r.channel) + '</span>' : '') + '</div><div class="ib-seen" data-seen="' + esc(r.id) + '"></div><div class="ib-crm" data-crk="' + esc(personKey(r)) + '"></div></div></button>' +
         '<div class="mk" data-mki="' + i + '">' + marksHtml(M[r.id], r.id) + '</div></div>';
     }).join('') + (list.length > limit ? '<button class="more" type="button" data-more>Show more · ' + fmt(list.length - limit) + ' left</button>' : '')
       : '<div class="empty">' + (rows.length ? 'No submissions match these filters.' : 'No form submissions in this period yet.') + '</div>';
-    $('[data-list]').querySelectorAll('.card').forEach(el => el.addEventListener('click', e => { const pb = e.target.closest('[data-pk]'); if (pb){ e.stopPropagation(); openPerson(P[pb.dataset.pk]); return; } const r0 = list[Number(el.dataset.i)]; openSubmission(r0); leadSeen(r0); }));
-    ibTeam(h);
+    $('[data-list]').querySelectorAll('.card').forEach(el => el.addEventListener('click', e => { const pb = e.target.closest('[data-pk]'); if (pb){ e.stopPropagation(); openPerson(P[pb.dataset.pk]); return; } const r0 = list[Number(el.dataset.i)]; const cc = e.target.closest('[data-crc]'); if (cc){ e.stopPropagation(); const ck = personKey(r0); openPerson((ck && P[ck]) || [r0]); return; } openSubmission(r0); leadSeen(r0); }));
+    ibTeam(h); ibCrm(h);
     fitList();
     $('[data-list]').querySelectorAll('[data-mki]').forEach(box => box.addEventListener('click', e => {
       const b = e.target.closest('[data-mk]'); if (!b) return;
@@ -656,6 +656,10 @@ function drawInbox(h, D, it){
   $('[data-act]').addEventListener('click', e => { e.stopPropagation(); ibActPanel(h); });
   const onTm = e => { if (!h.isConnected){ document.removeEventListener('el-team', onTm); return; } if (e.detail.domain === dom) ibTeam(h); };
   document.addEventListener('el-team', onTm);
+  /* Client stage, owner and follow-up on each lead, and CRM changes in the Activity panel, live. */
+  const onCrm = e => { if (!h.isConnected){ document.removeEventListener('el-crm', onCrm); return; } if (e.detail.domain !== dom) return; ibCrm(h); const pn = h.querySelector('.ia-panel'); if (pn && pn.redraw) pn.redraw(); };
+  document.addEventListener('el-crm', onCrm);
+  crmFor(dom).then(() => { if (h.isConnected && S.domain === dom){ ibCrm(h); const pn = h.querySelector('.ia-panel'); if (pn && pn.redraw) pn.redraw(); } }).catch(() => {});
   /* Everyone's full history, then the badges and how many had been in touch before. */
   formsHistory().then(all => {
     if (!h.isConnected || S.domain !== dom) return;
@@ -1309,7 +1313,7 @@ function renderApp(){
       (S.editing ? '<button class="btn" type="button" data-addw>' + ic('plus', 15) + 'Add widget</button><button class="btn" type="button" data-addnote>' + ic('spark', 15) + 'Add heading</button><button class="btn" type="button" data-rename>' + ic('edit', 15) + 'Rename</button>' +
         (L.dashes.length > 1 ? '<button class="btn" type="button" data-deldash>Delete dashboard</button>' : '') : '') +
       (canEdit() ? '<button class="btn' + (S.editing ? ' go' : '') + '" type="button" data-edit>' + (S.editing ? ic('check', 15) + 'Done' : ic('grid', 15) + 'Customize') + '</button>' : '') + '</div>' +
-      (S.editing ? '<div class="edithint">' + ic('grid', 14) + '<span>Drag a widget by its top bar to move it. Drag its edges or corner to make it wider, narrower, taller or shorter. Double-click the bottom edge to fit its content.</span></div>' : '') +
+      (S.editing ? '<div class="edithint">' + ic('grid', 14) + '<span>Drag a dashboard tab to change the order. Drag a widget by its top bar to move it. Drag its edges or corner to make it wider, narrower, taller or shorter. Double-click the bottom edge to fit its content.</span></div>' : '') +
     '<div class="grid" data-grid></div></main>';
   wireTop(); drawGrid(dash);
   bellCheck();
@@ -1342,6 +1346,7 @@ function wireTop(){
   const rn = q('[data-rename]'); if (rn) rn.addEventListener('click', () => { const n = prompt('Dashboard name:', dash.name); if (n && n.trim()){ dash.name = n.trim().slice(0, 40); saveLayout(); renderApp(); } });
   const delDash = d => { if (L.dashes.length < 2){ toast('Keep at least one dashboard.'); return; } if (!confirm('Delete the “' + d.name + '” dashboard?')) return; const at = L.dashes.indexOf(d); L.dashes.splice(at, 1); S.dash = Math.max(0, Math.min(S.dash > at ? S.dash - 1 : S.dash, L.dashes.length - 1)); saveLayout(); renderApp(); toast('Dashboard deleted'); };
   const dd = q('[data-deldash]'); if (dd) dd.addEventListener('click', () => delDash(dash));
+  if (arranging()) tabsReorder(L);
   if (arranging() && L.dashes.length > 1) app.querySelectorAll('.tab[data-dash]').forEach(b => { const x = document.createElement('span'); x.className = 'tab-x'; x.title = 'Delete this dashboard'; x.innerHTML = ic('x', 11); x.addEventListener('click', e => { e.stopPropagation(); delDash(L.dashes[Number(b.dataset.dash)]); }); b.appendChild(x); });
   q('[data-bell]').addEventListener('click', e => { e.stopPropagation(); feedPop('forms'); });
   q('[data-team]').addEventListener('click', e => { e.stopPropagation(); teamPop(); });
@@ -1582,7 +1587,7 @@ function leadSeen(r){
   }
   api('portalSeen', {session: S.session, domain: S.domain, id: r.id}).catch(() => {});
 }
-const actVerb = (a, lead) => a.s === 'open' ? 'opened <b>' + esc(lead) + '</b>'
+const actVerb = (a, lead) => a.s === 'crm' ? crmVerb(a, lead) : a.s === 'open' ? 'opened <b>' + esc(lead) + '</b>'
   : MARKS[a.s] ? 'marked <b>' + esc(lead) + '</b> as <span class="ia-chip" style="--c:' + MARKS[a.s][1] + '">' + ic(MARKS[a.s][2], 11) + MARKS[a.s][0] + '</span>'
   : 'removed their mark on <b>' + esc(lead) + '</b>';
 function ibTeam(h){
@@ -1625,11 +1630,11 @@ function ibActPanel(h){
   p.close = () => { p.classList.remove('in'); document.removeEventListener('keydown', onKey); clearInterval(tick); setTimeout(() => p.remove(), 260); const b = h.querySelector('[data-act]'); if (b) b.classList.remove('on'); };
   document.addEventListener('keydown', onKey);
   p.redraw = () => {
-    const d = TEAM.dom === S.domain && TEAM.data, acts = d ? d.acts || [] : null, me = actMe(), L = h.__leads || {};
+    const d = TEAM.dom === S.domain && TEAM.data, me = actMe(), L = h.__leads || {}, acts = d ? (d.acts || []).concat(crmActs(L)).sort((x, y) => y.t - x.t) : null;
     ls.set('el_ia_seen_' + S.domain, Date.now());
     const sc = p.querySelector('.ia-tl'), top = sc ? sc.scrollTop : 0;
     const names = acts ? [...new Set(acts.map(a => a.name))] : [];
-    const list = acts ? acts.filter(a => (st.f === 'all' || (st.f === 'open' ? a.s === 'open' : a.s !== 'open')) && (!st.who || a.name === st.who)).slice(0, 150) : [];
+    const list = acts ? acts.filter(a => (st.f === 'all' || (st.f === 'open' ? a.s === 'open' : st.f === 'crm' ? a.s === 'crm' : a.s !== 'open' && a.s !== 'crm')) && (!st.who || a.name === st.who)).slice(0, 150) : [];
     const on = d ? d.people.filter(x => x.on) : [];
     let day = '', tl = '';
     list.forEach((a, i) => {
@@ -1637,22 +1642,22 @@ function ibActPanel(h){
       if (dk !== day){ day = dk; const rd = relDay(a.t); tl += '<div class="ia-day">' + esc(rd.charAt(0).toUpperCase() + rd.slice(1)) + '</div>'; }
       const r = L[a.id], lead = r ? (r.name || r.email || r.phone || 'a lead') : 'a lead', key = a.t + '|' + a.id + '|' + a.s + '|' + a.name, isNew = !first && !shown.has(key);
       shown.add(key);
-      const M_ = MARKS[a.s], c = a.s === 'open' ? '#6366f1' : M_ ? M_[1] : '#94a3b8', icn = a.s === 'open' ? 'eye' : M_ ? M_[2] : 'x';
+      const M_ = MARKS[a.s], cg = a.s === 'crm' ? crmLook(a) : null, c = cg ? cg[0] : a.s === 'open' ? '#6366f1' : M_ ? M_[1] : '#94a3b8', icn = cg ? cg[1] : a.s === 'open' ? 'eye' : M_ ? M_[2] : 'x';
       tl += '<div class="ia-it' + (isNew ? ' new' : '') + (r ? '' : ' nolead') + '" data-ix="' + i + '"><div class="ia-av" style="background:' + hue(a.name) + ';--c:' + c + '">' + esc(a.by) + '<b>' + ic(icn, 10) + '</b></div>' +
         '<div class="ia-tx"><strong>' + esc(a.name === me ? 'You' : a.name) + '</strong> ' + actVerb(a, lead) + '<small title="' + esc(fullDate(a.t)) + '">' + esc(ago(a.t)) + ' · ' + esc(actClock(a.t)) + '</small></div></div>';
     });
     first = false;
     p.innerHTML = '<div class="ia-hd"><div class="ia-ic">' + ic('clock', 18) + '</div><div><h4>Inbox activity</h4><p><span class="ia-dot"></span>Live · everyone on this dashboard sees the same</p></div><button type="button" class="ia-x" data-x aria-label="Close">' + ic('x', 16) + '</button></div>' +
       '<div class="ia-here' + (on.length ? '' : ' none') + '">' + (on.length ? '<span class="ia-stk">' + on.slice(0, 5).map(x => '<i style="background:' + hue(x.name || x.email) + '" title="' + esc(x.name || x.email) + '">' + esc(x.by) + '</i>').join('') + '</span><span><b>' + esc(on.map(x => x.me ? 'You' : (x.name || x.email || 'Teammate').split(' ')[0]).join(', ')) + '</b>' + (on.length === 1 && !on[0].me ? ' is' : ' are') + ' here now</span>' : '<span>No one is on this dashboard right now</span>') + '</div>' +
-      '<div class="ia-f"><div class="ia-seg">' + [['all', 'All'], ['open', 'Opened'], ['mark', 'Marked']].map(([k, l]) => '<button type="button" data-f="' + k + '"' + (st.f === k ? ' class="on"' : '') + '>' + l + '</button>').join('') + '</div>' +
+      '<div class="ia-f"><div class="ia-seg">' + [['all', 'All'], ['open', 'Opened'], ['mark', 'Marked'], ['crm', 'Clients']].map(([k, l]) => '<button type="button" data-f="' + k + '"' + (st.f === k ? ' class="on"' : '') + '>' + l + '</button>').join('') + '</div>' +
       (names.length > 1 ? '<div class="ia-pp">' + names.slice(0, 8).map(n => '<button type="button" data-w="' + esc(n) + '" title="' + esc(n === me ? 'Only you' : 'Only ' + n) + '" style="background:' + hue(n) + '"' + (st.who === n ? ' class="on"' : '') + '>' + esc(initials(n)) + '</button>').join('') + '</div>' : '') + '</div>' +
-      '<div class="ia-tl">' + (acts ? (tl || '<div class="ia-empty"><span>' + ic('clock', 22) + '</span>' + (acts.length ? 'Nothing matches this filter.' : 'No activity yet. When anyone opens or marks a lead in this inbox, it shows here for everyone.') + '</div>') : '<div class="ia-empty"><span class="spin"></span>Loading the activity…</div>') + '</div>' +
+      '<div class="ia-tl">' + (acts ? (tl || '<div class="ia-empty"><span>' + ic('clock', 22) + '</span>' + (acts.length ? 'Nothing matches this filter.' : 'No activity yet. When anyone opens or marks a lead, or changes a client’s stage, owner, follow-up or notes, it shows here for everyone.') + '</div>') : '<div class="ia-empty"><span class="spin"></span>Loading the activity…</div>') + '</div>' +
       '<div class="ia-ft"><span class="ia-dot"></span><span data-upd>' + (TEAM.got ? 'Updated just now' : 'Connecting…') + '</span><span class="ia-n">' + (acts ? fmt(acts.length) + ' event' + (acts.length === 1 ? '' : 's') : '') + '</span></div>';
     const sc2 = p.querySelector('.ia-tl'); if (sc2) sc2.scrollTop = top;
     p.querySelector('[data-x]').addEventListener('click', () => p.close());
     p.querySelectorAll('[data-f]').forEach(x => x.addEventListener('click', () => { st.f = x.dataset.f; p.redraw(); }));
     p.querySelectorAll('[data-w]').forEach(x => x.addEventListener('click', () => { st.who = st.who === x.dataset.w ? '' : x.dataset.w; p.redraw(); }));
-    p.querySelectorAll('[data-ix]').forEach(el => el.addEventListener('click', () => { const r = L[list[Number(el.dataset.ix)].id]; if (r){ openSubmission(r); leadSeen(r); } }));
+    p.querySelectorAll('[data-ix]').forEach(el => el.addEventListener('click', () => { const a0 = list[Number(el.dataset.ix)], r = L[a0.id]; if (a0.s === 'crm' && r){ openPerson(peopleOf(Object.values(L))[a0.k] || [r]); return; } if (r){ openSubmission(r); leadSeen(r); } }));
   };
   p.redraw();
   const b = h.querySelector('[data-act]'); if (b){ b.classList.add('on'); const c = b.querySelector('[data-iac]'); if (c) c.textContent = ''; }
@@ -1944,8 +1949,31 @@ async function crmClients(extra){
       city: list.map(cityOf).find(Boolean) || '', first: first.at, last: f.at, n: list.length, form: formLabel(f.form), channel: first.channel || '',
       stage: STG[r.stage] ? r.stage : 'new', staged: !!STG[r.stage], value: Number(r.value) || 0, owner: r.owner || '', due: r.due || '',
       notes: r.notes || [], log: r.log || [], touched: r.t || 0, stageAt: lastStage ? lastStage.t : 0,
-      spam: list.every(x => markStatus(M, x) === 'Spam'), M};
+      spam: list.every(x => markStatus(M, x) === 'Spam'), M,
+      marks: [].concat.apply([], list.map(x => ((M || {})[x.id] || []).map(m => Object.assign({id: x.id}, m)))).sort((a, b) => b.t - a.t),
+      views: crmViews(list)};
   }).filter(c => c.list.length);
+}
+/* Who opened this person's requests (from the team check-in), newest first, once per person. */
+function crmViews(list){
+  const d = TEAM.dom === S.domain && TEAM.data; if (!d || !d.acts) return [];
+  const ids = {}; list.forEach(r => { if (r.id) ids[r.id] = 1; });
+  const out = [], seen = {};
+  d.acts.forEach(a => { if (a.s === 'open' && ids[a.id] && !seen[a.name]){ seen[a.name] = 1; out.push(a); } });
+  return out;
+}
+/* Marks (latest per teammate) and who viewed, as small chips. */
+function crmMV(c, compact){
+  const me = actMe(), per = {}, ml = [];
+  c.marks.forEach(m => { if (!per[m.name]){ per[m.name] = 1; ml.push(m); } });
+  const mk = ml.slice(0, compact ? 2 : 3).map(m => '<span class="cr-mk" style="--c:' + MARKS[m.s][1] + '" title="' + esc(MARKS[m.s][0] + ' · marked by ' + (m.name === me ? 'you' : m.name) + ' · ' + fullDate(m.t)) + '">' + ic(MARKS[m.s][2], 10) + (compact ? '' : MARKS[m.s][0]) + '<em>' + esc(m.by) + '</em></span>').join('');
+  const v = c.views, vw = v.length ? '<span class="cr-vw" title="' + esc('Opened by ' + v.map(a => (a.name === me ? 'you' : a.name) + ' (' + ago(a.t) + ')').join(', ')) + '">' + ic('eye', 11) + '<span>' + v.slice(0, 3).map(a => '<i style="background:' + hue(a.name) + '">' + esc(a.by) + '</i>').join('') + '</span>' + (compact ? '' : esc(v[0].name === me ? 'You' : v[0].name.split(' ')[0]) + (v.length > 1 ? ' +' + (v.length - 1) : '') + ' · ' + esc(ago(v[0].t))) + '</span>' : '';
+  return mk + vw;
+}
+/* After a mark is made from a client card, show it in every inbox on the page right away. */
+function crmMarksOut(M){
+  document.querySelectorAll('[data-mki]').forEach(box => { const b = box.querySelector('[data-mk]'); if (b) box.innerHTML = marksHtml(M[b.dataset.mk], b.dataset.mk); });
+  crmEmit(S.domain);
 }
 const dueOf = c => {
   if (!c.due) return null;
@@ -1968,6 +1996,17 @@ function crmWire(h, paint){
     paint();
   };
   document.addEventListener('el-crm', on);
+  /* Marks and "opened by" come with the team check-in: repaint only when they changed. */
+  const sig = () => { const d = TEAM.dom === dom && TEAM.data; if (!d) return ''; const o = (d.acts || []).filter(a => a.s === 'open'); return JSON.stringify(d.marks || {}) + '|' + o.length + '|' + (o[0] ? o[0].t + o[0].name : ''); };
+  let last = sig();
+  const onT = e => {
+    if (!h.isConnected){ document.removeEventListener('el-team', onT); return; }
+    if (e.detail.domain !== dom) return;
+    const s2 = sig(); if (s2 === last) return; last = s2;
+    if (h.querySelector('.dragging') || document.querySelector('.mk-menu')) return;
+    on({detail: {domain: dom}});
+  };
+  document.addEventListener('el-team', onT);
 }
 const crmLoading = n => '<div class="cr-load">' + Array.from({length: n || 4}, (_, i) => '<div class="sk" style="height:' + (i ? 44 : 30) + 'px;border-radius:12px;margin-bottom:8px;opacity:' + (1 - i * .15) + '"></div>').join('') + '</div>';
 const crmErr = e => '<div class="err">' + ic('lock', 22) + '<br><b>Clients couldn’t load</b><br>' + esc(e && e.message || 'Try again in a moment.') + '</div>';
@@ -2028,7 +2067,7 @@ function drawCrmBoard(h, D, it){
           return '<div class="cr-card" draggable="true" data-k="' + esc(c.k) + '"><div class="cc-top"><span class="cc-av" style="background:' + hue(c.name) + '">' + esc(initials(c.name)) + '</span><div class="cc-n"><b>' + esc(c.name) + '</b><small>' + esc(c.company || c.form) + ' · ' + esc(relDay(c.last)) + '</small></div>' + (c.value ? '<em>' + money(c.value) + '</em>' : '') + '</div>' +
             '<div class="cc-meta">' + (wait ? '<span class="cr-wait ' + (wait < 36e5 ? 'ok' : wait < 864e5 ? 'mid' : 'bad') + '">' + ic('clock', 11) + waitTxt(wait) + ' waiting</span>' : '') + dueChip(c) +
             (c.n > 1 ? '<span class="cc-tag">' + ic('reset', 11) + c.n + ' requests</span>' : '') + (c.notes.length ? '<span class="cc-tag">' + ic('edit', 11) + c.notes.length + '</span>' : '') +
-            (c.owner ? '<span class="cc-own" title="Owner: ' + esc(c.owner) + '" style="background:' + hue(c.owner) + '">' + esc(initials(c.owner)) + '</span>' : '') + '</div></div>';
+            crmMV(c, true) + (c.owner ? '<span class="cc-own" title="Owner: ' + esc(c.owner) + '" style="background:' + hue(c.owner) + '">' + esc(initials(c.owner)) + '</span>' : '') + '</div></div>';
         }).join('') + (list.length > cap ? '<button type="button" class="cr-more" data-more="' + x[0] + '">Show ' + fmt(list.length - cap) + ' more</button>' : '') : '<div class="cr-empty">' + (x[0] === 'new' ? 'No new leads waiting' : 'Drop a client here') + '</div>') +
         '</div></div>';
     }).join('');
@@ -2119,11 +2158,11 @@ function drawCrmClients(h, D, it){
     h.querySelectorAll('[data-st]').forEach(b => b.addEventListener('click', () => { st.st = b.dataset.st; st.n = 50; render(); }));
     const L = list().sort(SORTS[st.sort] || SORTS.last), th = (k, t, cls) => '<th' + (cls ? ' class="' + cls + '"' : '') + '><button type="button" class="sc-sort' + (st.sort === k ? ' on' : '') + '" data-sort="' + k + '">' + t + '</button></th>';
     const spam = C.length - ok.length;
-    h.querySelector('[data-t]').innerHTML = L.length ? '<div class="tbl-wrap fade-in"><table class="tbl cr-tbl"><thead><tr>' + th('name', 'Client') + '<th>Contact</th>' + th('stage', 'Stage') + th('value', 'Value', 'num') + '<th>Owner</th>' + th('n', 'Requests', 'num') + th('first', 'First seen', 'num') + th('last', 'Latest', 'num') + '<th>Came from</th></tr></thead><tbody>' +
+    h.querySelector('[data-t]').innerHTML = L.length ? '<div class="tbl-wrap fade-in"><table class="tbl cr-tbl"><thead><tr>' + th('name', 'Client') + '<th>Contact</th>' + th('stage', 'Stage') + th('value', 'Value', 'num') + '<th>Owner</th><th>Marks &amp; views</th>' + th('n', 'Requests', 'num') + th('first', 'First seen', 'num') + th('last', 'Latest', 'num') + '<th>Came from</th></tr></thead><tbody>' +
       L.slice(0, st.n).map(c => '<tr class="click" data-k="' + esc(c.k) + '"><td><div class="who"><div class="av" style="background:' + hue(c.name) + '">' + esc(initials(c.name)) + '</div><div style="min-width:0"><b>' + esc(c.name) + '</b>' + (c.company || c.city ? '<span class="muted" style="font-size:12px">' + esc([c.company, c.city].filter(Boolean).join(' · ')) + '</span>' : '') + '</div></div></td>' +
         '<td style="font-size:12.5px">' + esc(c.email || '') + (c.email && c.phone ? '<br>' : '') + '<span class="muted">' + esc(c.phone || (c.email ? '' : '—')) + '</span></td><td>' + stagePill(c.stage) + (dueOf(c) ? '<br>' + dueChip(c) : '') + '</td>' +
         '<td class="num">' + (c.value ? money(c.value) : '<span class="muted">—</span>') + '</td><td>' + (c.owner ? '<span class="cr-ownc"><i style="background:' + hue(c.owner) + '">' + esc(initials(c.owner)) + '</i>' + esc(c.owner) + '</span>' : '<span class="muted">—</span>') + '</td>' +
-        '<td class="num">' + fmt(c.n) + '</td><td class="num muted">' + esc(relDay(c.first)) + '</td><td class="num muted">' + esc(relDay(c.last)) + '</td><td>' + (c.channel ? '<span class="pill blue">' + esc(c.channel) + '</span>' : '<span class="muted">—</span>') + '</td></tr>').join('') +
+        '<td><div class="cr-mvc">' + (crmMV(c) || '<span class="muted">—</span>') + '</div></td><td class="num">' + fmt(c.n) + '</td><td class="num muted">' + esc(relDay(c.first)) + '</td><td class="num muted">' + esc(relDay(c.last)) + '</td><td>' + (c.channel ? '<span class="pill blue">' + esc(c.channel) + '</span>' : '<span class="muted">—</span>') + '</td></tr>').join('') +
       '</tbody></table></div><div class="pager"><span>' + fmt(Math.min(st.n, L.length)) + ' of ' + fmt(L.length) + ' client' + (L.length === 1 ? '' : 's') + (spam ? ' · ' + fmt(spam) + ' marked spam left out' : '') + '</span><div>' + (L.length > st.n ? '<button class="btn sm" type="button" data-morec>Show more</button>' : '') + '</div></div>'
       : '<div class="empty">' + (C.length ? 'No clients match.' : 'No clients yet. Everyone who sends a form shows up here.') + '</div>';
     h.querySelectorAll('[data-sort]').forEach(b => b.addEventListener('click', () => { st.sort = b.dataset.sort; render(); }));
@@ -2148,8 +2187,18 @@ function openClient(key, list){
   const box = b.querySelector('[data-cr]');
   let c = null;
   const owners = () => { const s = new Set(); ((TEAM.data && TEAM.data.people) || []).forEach(p => { if (p.name) s.add(p.name); }); Object.values((CRM[S.domain] || {}).data || {}).forEach(r => { if (r.owner) s.add(r.owner); }); s.add(crmMe()); return [...s]; };
+  let EV = [];
+  /* Every request from this person, with the same Done / Pending / Spam marks as the inbox (and who opened it). */
+  const reqs = () => c.list.slice(0, 20).map((r, i) => {
+    const v = crmViews([r]);
+    return '<div class="cr-req"><div class="cr-rq" data-rq="' + i + '"><b>' + esc(formLabel(r.form)) + '</b><small>' + esc(fullDate(r.at)) + (r.message ? ' · ' + esc(String(r.message).slice(0, 70)) : '') + '</small>' +
+      (v.length ? '<span class="cr-vw">' + ic('eye', 11) + '<span>' + v.slice(0, 3).map(a => '<i style="background:' + hue(a.name) + '">' + esc(a.by) + '</i>').join('') + '</span>Opened by ' + esc(v[0].name === actMe() ? 'you' : v[0].name.split(' ')[0]) + (v.length > 1 ? ' +' + (v.length - 1) : '') + '</span>' : '') +
+      '</div><div class="mk" data-rmk="' + i + '">' + marksHtml(((c.M || {})[r.id]), r.id) + '</div></div>';
+  }).join('') + (c.list.length > 20 ? '<div class="cr-moretxt">+ ' + (c.list.length - 20) + ' older requests</div>' : '');
   const tl = () => {
-    const ev = [];
+    const ev = EV = [];
+    const ids = {}; c.list.forEach(r => { if (r.id) ids[r.id] = r; });
+    ((TEAM.dom === S.domain && TEAM.data && TEAM.data.acts) || []).forEach(a => { if (a.s === 'open' && ids[a.id]) ev.push({t: a.t, ic: 'eye', col: '#6366f1', h: '<b>' + esc(a.name === actMe() ? 'You' : a.name) + '</b> opened “' + esc(formLabel(ids[a.id].form)) + '”', r: ids[a.id], who: a.name}); });
     c.list.forEach(r => { ev.push({t: r.at, ic: 'form', col: '#1d7cf2', h: '<b>Sent “' + esc(formLabel(r.form)) + '”</b>' + (r.message ? '<small class="cr-q">' + esc(String(r.message).slice(0, 140)) + '</small>' : ''), r});
       ((c.M || {})[r.id] || []).forEach(m => ev.push({t: m.t, ic: MARKS[m.s][2], col: MARKS[m.s][1], h: '<b>' + esc(m.name || m.by) + '</b> marked a request <b>' + esc(MARKS[m.s][0]) + '</b>', who: m.name || m.by})); });
     c.log.forEach(l => {
@@ -2158,8 +2207,8 @@ function openClient(key, list){
         l.f === 'due' ? w + (l.v ? 'set a follow-up for <b>' + esc(new Date(l.v + 'T00:00:00').toLocaleDateString('en-CA', {weekday: 'short', month: 'short', day: 'numeric'})) + '</b>' : 'cleared the follow-up') : l.f === 'done' ? w + 'finished the follow-up' : w + 'added a note';
       ev.push({t: l.t, ic: l.f === 'stage' ? (STG[l.v] || STG.new)[3] : l.f === 'value' ? 'money' : l.f === 'owner' ? 'users' : l.f === 'note' ? 'edit' : 'clock', col: l.f === 'stage' ? (STG[l.v] || STG.new)[2] : '#64748b', h, who: l.name || l.by});
     });
-    ev.sort((a, b) => b.t - a.t);
-    return ev.slice(0, 80).map((e, i) => '<div class="cr-ev"' + (e.r ? ' data-sub="' + i + '"' : '') + '><span class="cr-evi" style="--c:' + e.col + '">' + ic(e.ic, 12) + '</span><div>' + e.h + '<small>' + esc(fullDate(e.t)) + ' · ' + esc(ago(e.t)) + '</small></div></div>').join('') || '<div class="cr-empty">Nothing yet.</div>';
+    ev.sort((a, b) => b.t - a.t); EV = ev.slice(0, 80);
+    return EV.map((e, i) => '<div class="cr-ev"' + (e.r ? ' data-sub="' + i + '"' : '') + '><span class="cr-evi" style="--c:' + e.col + '">' + ic(e.ic, 12) + '</span><div>' + e.h + '<small>' + esc(fullDate(e.t)) + ' · ' + esc(ago(e.t)) + '</small></div></div>').join('') || '<div class="cr-empty">Nothing yet.</div>';
   };
   const paint = () => {
     box.innerHTML = '<div class="cr-steps">' + STAGES.map(x => '<button type="button" data-stage="' + x[0] + '" style="--c:' + x[2] + '" class="' + (c.stage === x[0] ? 'on' : '') + '">' + ic(x[3], 13) + esc(x[1]) + '</button>').join('') + '</div>' +
@@ -2170,7 +2219,8 @@ function openClient(key, list){
       '<div class="cr-quick">' + [[1, 'Tomorrow'], [3, 'In 3 days'], [7, 'Next week']].map(x => '<button type="button" data-in="' + x[0] + '">' + x[1] + '</button>').join('') + (c.due ? '<button type="button" data-donef class="go">' + ic('check', 12) + 'Follow-up done</button>' : '') + '</div>' +
       '<div class="pp-h">' + ic('edit', 14) + 'Team notes</div><div class="cr-notes">' + (c.notes.length ? c.notes.slice().reverse().map(n => '<div class="cr-nt"><span class="cc-av" style="background:' + hue(n.name || n.by) + '">' + esc(n.by || initials(n.name)) + '</span><div><div class="cr-nh"><b>' + esc(n.name || n.by) + '</b><small>' + esc(ago(n.t)) + '</small></div><div class="cr-nx">' + esc(n.x) + '</div></div></div>').join('') : '<div class="cr-empty">No notes yet. What did they ask for? When can you call?</div>') + '</div>' +
       '<div class="cr-comp"><textarea data-crnote rows="2" placeholder="Add a note for the team… (Ctrl+Enter to save)"></textarea><button class="btn go sm" type="button" data-addnote>' + ic('send', 13) + 'Add note</button></div>' +
-      '<div class="pp-h">' + ic('clock', 14) + 'Timeline</div><div class="cr-tl">' + tl() + '</div>';
+      '<div class="pp-h">' + ic('form', 14) + 'Requests · marks</div><div class="cr-reqs">' + reqs() + '</div>' +
+      '<div class="pp-h">' + ic('clock', 14) + 'Timeline · marks, views and changes</div><div class="cr-tl">' + tl() + '</div>';
     box.querySelectorAll('[data-stage]').forEach(x => x.addEventListener('click', () => { if (c.stage === x.dataset.stage && c.staged) return; const s = x.dataset.stage, set = {stage: s};
       if ((s === 'won' || s === 'quoted') && !c.value){ const v = prompt((s === 'won' ? 'Nice! What was the job worth?' : 'What is the quote worth?') + ' (optional, in dollars)', ''); const n = Number(String(v || '').replace(/[^0-9.]/g, '')); if (n > 0) set.value = Math.round(n); }
       if (s === 'won') edgeConfetti(x); crmSave(key, set); }));
@@ -2186,16 +2236,14 @@ function openClient(key, list){
     box.querySelector('[data-addnote]').addEventListener('click', add);
     ta.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); add(); } });
     box.querySelectorAll('[data-sub]').forEach(el => el.addEventListener('click', () => {
-      const r = tlRows()[Number(el.dataset.sub)]; if (r) openSubmission(r);
+      const e0 = EV[Number(el.dataset.sub)]; if (e0 && e0.r){ openSubmission(e0.r); leadSeen(e0.r); }
     }));
-  };
-  /* the rows behind the timeline, in the same order, so a click on a submission opens it */
-  const tlRows = () => {
-    const ev = [];
-    c.list.forEach(r => { ev.push({t: r.at, r}); ((c.M || {})[r.id] || []).forEach(m => ev.push({t: m.t})); });
-    c.log.forEach(l => ev.push({t: l.t}));
-    ev.sort((a, b) => b.t - a.t);
-    return ev.slice(0, 80).map(e => e.r);
+    box.querySelectorAll('[data-rq]').forEach(el => el.addEventListener('click', () => { const r = c.list[Number(el.dataset.rq)]; if (r){ openSubmission(r); leadSeen(r); } }));
+    box.querySelectorAll('[data-rmk]').forEach(mb => mb.addEventListener('click', e => {
+      const bt = e.target.closest('[data-mk]'); if (!bt) return; e.stopPropagation();
+      const r = c.list[Number(mb.dataset.rmk)], M = c.M || {};
+      markMenu(bt, r, M, () => { mb.innerHTML = marksHtml(M[r.id], r.id); crmMarksOut(M); });
+    }));
   };
   const load = async () => {
     try{ const all = await crmClients(list); c = all.find(x => x.k === key); }catch(e){ box.innerHTML = crmErr(e); return; }
@@ -2206,9 +2254,60 @@ function openClient(key, list){
     paint();
   };
   load();
+  if (list[0] && list[0].id) leadSeen(list[0]);
+  const onT = e => { if (!b.isConnected){ document.removeEventListener('el-team', onT); return; } if (e.detail.domain === S.domain && c && !document.querySelector('.mk-menu')) load(); };
+  document.addEventListener('el-team', onT);
   const on = e => { if (!b.isConnected){ document.removeEventListener('el-crm', on); return; } if (e.detail.domain === S.domain) load(); };
   document.addEventListener('el-crm', on);
   return b;
+}
+
+/* ----- In the Lead inbox: each lead's client stage, owner and follow-up; CRM changes in its Activity ----- */
+function ibCrm(h){
+  const data = (CRM[S.domain] || {}).data; if (!data) return;
+  h.querySelectorAll('[data-crk]').forEach(el => {
+    const k = el.dataset.crk, r = k && data[k];
+    if (!k){ el.innerHTML = ''; return; }
+    const st = r && STG[r.stage] ? r.stage : '', last = r && r.log && r.log.length ? r.log[r.log.length - 1] : null;
+    el.innerHTML = r && (st || r.owner || r.due || (r.notes || []).length)
+      ? '<span role="button" tabindex="0" class="ib-cr" data-crc title="Open the client card">' + (st ? stagePill(st) : '') + (Number(r.value) ? '<span class="ib-crv">' + money(r.value) + '</span>' : '') +
+        (r.owner ? '<span class="cr-ownc"><i style="background:' + hue(r.owner) + '">' + esc(initials(r.owner)) + '</i>' + esc(r.owner.split(' ')[0]) + '</span>' : '') + dueChip({due: r.due || ''}) +
+        ((r.notes || []).length ? '<span class="cc-tag">' + ic('edit', 11) + r.notes.length + '</span>' : '') +
+        (last ? '<span class="ib-crw">' + esc(last.name === actMe() ? 'You' : String(last.name || last.by).split(' ')[0]) + ' · ' + esc(ago(last.t)) + '</span>' : '') + ic('chev', 12) + '</span>'
+      : '<span role="button" tabindex="0" class="ib-cr ghost" data-crc title="Open the client card">' + ic('grid', 11) + 'Client card' + ic('chev', 12) + '</span>';
+  });
+}
+function crmActs(L){
+  const data = (CRM[S.domain] || {}).data; if (!data) return [];
+  const byK = {}; Object.values(L || {}).forEach(r => { const k = personKey(r); if (k && (!byK[k] || r.at > byK[k].at)) byK[k] = r; });
+  const out = [];
+  Object.keys(data).forEach(k => (data[k].log || []).forEach(l => out.push({t: l.t, name: l.name || l.by, by: l.by || initials(l.name), s: 'crm', f: l.f, v: l.v, k, id: byK[k] ? byK[k].id : ''})));
+  return out;
+}
+const crmLook = a => a.f === 'stage' ? [(STG[a.v] || STG.new)[2], (STG[a.v] || STG.new)[3]] : a.f === 'value' ? ['#0f7a58', 'money'] : a.f === 'owner' ? ['#4f46e5', 'users'] : a.f === 'note' ? ['#475569', 'edit'] : ['#d9820b', 'clock'];
+const crmVerb = (a, lead) => { const L = '<b>' + esc(lead) + '</b>';
+  return a.f === 'stage' ? 'moved ' + L + ' to ' + stagePill(STG[a.v] ? a.v : 'new') : a.f === 'value' ? (Number(a.v) ? 'set ' + L + '’s job value to <b>' + money(a.v) + '</b>' : 'cleared ' + L + '’s job value') :
+    a.f === 'owner' ? (a.v ? 'gave ' + L + ' to <b>' + esc(a.v) + '</b>' : 'removed ' + L + '’s owner') : a.f === 'due' ? (a.v ? 'set a follow-up with ' + L + ' for <b>' + esc(new Date(a.v + 'T00:00:00').toLocaleDateString('en-CA', {month: 'short', day: 'numeric'})) + '</b>' : 'cleared the follow-up with ' + L) :
+    a.f === 'done' ? 'finished the follow-up with ' + L : 'left a note on ' + L; };
+
+/* ----- Dashboard tabs: drag to reorder (while customizing) ----- */
+function tabsReorder(L){
+  const tabs = app.querySelectorAll('.tab[data-dash]'); let from = null;
+  const clear = () => tabs.forEach(x => x.classList.remove('tab-ovl', 'tab-ovr'));
+  tabs.forEach(b => {
+    b.draggable = true; b.classList.add('tab-dr'); b.title = 'Drag to move this dashboard';
+    b.addEventListener('dragstart', e => { from = Number(b.dataset.dash); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'tab'); setTimeout(() => b.classList.add('tab-drag'), 0); });
+    b.addEventListener('dragend', () => { from = null; b.classList.remove('tab-drag'); clear(); });
+    b.addEventListener('dragover', e => { if (from == null) return; e.preventDefault(); const r = b.getBoundingClientRect(), right = e.clientX > r.left + r.width / 2; clear(); b.classList.add(right ? 'tab-ovr' : 'tab-ovl'); });
+    b.addEventListener('dragleave', e => { if (!b.contains(e.relatedTarget)) b.classList.remove('tab-ovl', 'tab-ovr'); });
+    b.addEventListener('drop', e => {
+      e.preventDefault(); if (from == null) return;
+      const right = b.classList.contains('tab-ovr'), target = L.dashes[Number(b.dataset.dash)], moved = L.dashes[from], cur = L.dashes[S.dash];
+      clear(); if (!target || !moved || target === moved) return;
+      L.dashes.splice(from, 1); L.dashes.splice(L.dashes.indexOf(target) + (right ? 1 : 0), 0, moved);
+      S.dash = Math.max(0, L.dashes.indexOf(cur)); saveLayout(); renderApp(); toast('Dashboard moved');
+    });
+  });
 }
 
 (function(){ if (document.getElementById('cr-css')) return; const st = document.createElement('style'); st.id = 'cr-css';
@@ -2254,6 +2353,13 @@ function openClient(key, list){
     '.cr-evi{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;color:#fff;background:var(--c);box-shadow:0 0 0 3px #fff}' +
     '.cr-note-warn{display:flex;align-items:center;gap:7px;font-size:12.5px;color:#c8352e;background:#fdecec;border-radius:10px;padding:8px 11px;margin-bottom:12px}' +
     '@media (max-width:640px){.cr-fields{grid-template-columns:1fr}.cr-steps{grid-template-columns:repeat(2,1fr)}}' +
+    '.cr-mk{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:650;color:var(--c);background:color-mix(in srgb,var(--c) 11%,#fff);border-radius:99px;padding:2px 7px 2px 6px;white-space:nowrap}.cr-mk em{font-style:normal;color:var(--ink-2);font-weight:700;font-size:10px}' +
+    '.cr-vw{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ink-3);white-space:nowrap}.cr-vw>svg{color:#6366f1}.cr-vw>span{display:inline-flex}.cr-vw i{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;color:#fff;font:700 8.5px var(--ui);font-style:normal;border:1.5px solid #fff;margin-left:-5px}.cr-vw i:first-child{margin-left:0}' +
+    '.cr-mvc{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;max-width:260px}' +
+    '.cr-reqs{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}.cr-req{display:flex;align-items:flex-start;gap:10px;padding:9px 11px;border:1px solid #eef0f3;border-radius:12px;background:#fff}.cr-rq{flex:1;min-width:0;cursor:pointer}.cr-rq b{display:block;font-size:13px}.cr-rq small{display:block;font-size:11.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px}.cr-req .mk{position:relative;left:auto;right:auto;bottom:auto;flex:none;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:4px;max-width:55%}' +
+    '.ib-crm:empty{display:none}.ib-crm{margin-top:7px}.ib-cr{display:inline-flex;align-items:center;flex-wrap:wrap;gap:6px;border:1px solid #e6e9ee;background:#fafbfc;border-radius:99px;padding:3px 8px 3px 4px;font:inherit;font-size:11.5px;color:var(--ink-2);cursor:pointer;transition:border-color .15s,background .15s}.ib-cr:hover{border-color:#c9d3e3;background:#f3f6fb}.ib-cr>svg:last-child{color:var(--ink-3)}' +
+    '.ib-cr.ghost{opacity:0;padding:3px 9px;gap:5px;transition:opacity .2s}.ibrow:hover .ib-cr.ghost,.ib-cr.ghost:focus{opacity:1}.ib-crv{font-weight:700;color:#0f7a58}.ib-crw{color:var(--ink-3)}' +
+    '.tab-dr{cursor:grab}.tab-drag{opacity:.35}.tab-ovl{box-shadow:inset 3px 0 0 #1d7cf2}.tab-ovr{box-shadow:inset -3px 0 0 #1d7cf2}' +
     '.tab-x{display:inline-grid;place-items:center;width:18px;height:18px;margin-left:6px;margin-right:-4px;border-radius:50%;color:var(--ink-3);vertical-align:-3px;transition:background .15s,color .15s}.tab-x:hover{background:#fdecec;color:#c8352e}';
   document.head.appendChild(st); })();
 
