@@ -258,6 +258,11 @@ const W = {
   crm_clients: {g: 'Clients', t: 'Client list', d: 'One row per person across every form they sent: stage, job value, owner, first and latest request. Export to CSV.', ic: 'users', tint: '#0891b2', c: 12, sk: 'table', needs: ['forms'], draw: drawCrmClients},
   ghl_deals: {g: 'Sales desk', t: 'Deals pipeline', d: 'Your Easyleads pipeline: drag a deal to another stage, mark it won or lost, change its value or create a new one. Every change is made in Easyleads right away.', ic: 'funnel', tint: '#1d7cf2', c: 12, sk: 'table', needs: [], wr: true, draw: drawGhlDeals},
   ghl_contacts: {g: 'Sales desk', t: 'Contacts desk', d: 'Search any contact, then edit details, tags and notes, add tasks, book or move appointments and send a text or email, right in Easyleads.', ic: 'users', tint: '#0b5fd0', c: 12, sk: 'list', needs: [], wr: true, draw: drawGhlContacts},
+  ghl_pipe: {g: 'Sales desk', t: 'Pipeline summary', d: 'Open pipeline value, deals won this month, win rate and new deals, with the count and value in every stage. Live from Easyleads.', ic: 'bars', tint: '#7c3aed', c: 12, sk: 'kpis', needs: [], wr: true, draw: drawGhlPipe},
+  ghl_tasks: {g: 'Sales desk', t: 'Tasks due', d: 'Every open task in Easyleads: overdue, due today and coming up. Tick one off and it’s done in Easyleads.', ic: 'check', tint: '#0f9d6b', c: 6, sk: 'list', needs: [], wr: true, draw: drawGhlTasks},
+  ghl_appts: {g: 'Sales desk', t: 'Appointments', d: 'Today’s bookings on every Easyleads calendar. Confirm, mark a no-show, move or cancel right here.', ic: 'cal', tint: '#0891b2', c: 6, sk: 'list', needs: [], wr: true, draw: drawGhlAppts},
+  ghl_convs: {g: 'Sales desk', t: 'Conversations', d: 'The latest texts and emails with your contacts. See who is waiting for a reply and answer without leaving the dashboard.', ic: 'inbox', tint: '#1d7cf2', c: 12, sk: 'list', needs: [], wr: true, draw: drawGhlConvs},
+  ghl_camp: {g: 'Sales desk', t: 'Campaigns', d: 'Write a text or email campaign, choose who gets it by tags, preview it for each person and send it through Easyleads.', ic: 'send', tint: '#db2777', c: 12, sk: 'list', needs: [], wr: 2, draw: drawGhlCamp},
   note: {g: 'Text', t: 'Heading & summary', d: 'A heading and a short write-up. Attach it to a widget and it explains that widget’s numbers in plain words.', ic: 'spark', tint: '#475569', c: 12, sk: 'note', needs: [], draw: drawNote}
 };
 /* Where this business's data comes from: its Easyleads account, or the EDGE tracker (website forms, phone taps). */
@@ -267,7 +272,7 @@ const gaOn = () => !!((S.me && S.me.clients.find(c => c.domain === S.domain)) ||
 const gscOn = () => !!((S.me && S.me.clients.find(c => c.domain === S.domain)) || {}).gsc;
 const aiOn = () => !!((S.me && S.me.clients.find(c => c.domain === S.domain)) || {}).ai;
 const kOn = k => k === 'ga' ? gaOn() : k === 'gsc' ? gscOn() : k === 'ai' ? aiOn() : null;
-const okFor = t => { const w = W[t]; if (!w) return false; if (w.only && w.only.indexOf(S.domain) < 0) return false; if (w.wr) return canGhl(); if (w.ga) return gaOn(); if (w.gsc) return gscOn(); if (w.ai) return aiOn(); if (t === 'note' || srcOf() === 'easyleads') return true; if (w.el) return false; return w.soft ? w.needs.some(k => SITE_K[k]) : w.needs.every(k => SITE_K[k]); };
+const okFor = t => { const w = W[t]; if (!w) return false; if (w.only && w.only.indexOf(S.domain) < 0) return false; if (w.wr) return canGhl() && ghLv() >= (w.wr === true ? 1 : w.wr); if (w.ga) return gaOn(); if (w.gsc) return gscOn(); if (w.ai) return aiOn(); if (t === 'note' || srcOf() === 'easyleads') return true; if (w.el) return false; return w.soft ? w.needs.some(k => SITE_K[k]) : w.needs.every(k => SITE_K[k]); };
 const needsOf = it => it.t === 'note' ? (it.about && W[it.about] && it.about !== 'note' ? W[it.about].needs : []) : W[it.t].needs;
 /* Anything a business can't have yet is left out of its report entirely (it stays in the layout, so it shows up by itself once available). */
 const visIt = it => it.t === 'note' ? (!it.about || okFor(it.about)) : okFor(it.t);
@@ -1281,7 +1286,9 @@ function layout(){
     first.items.splice(at < 0 ? 0 : at + 1, 0, item(t));
   });
   /* Logins allowed to change things in Easyleads get a Sales desk tab, once. */
-  if (!A.desk && S.me && S.me.write && !S.me.edge){ A.desk = 1; S.layout.dashes.splice(Math.min(1, S.layout.dashes.length), 0, deskDash()); if (canEdit()) setTimeout(() => saveLayout(true), 0); }
+  if (!A.desk && S.me && ghLogin() > 0 && !S.me.edge){ A.desk = 1; A.desk2 = 1; S.layout.dashes.splice(Math.min(1, S.layout.dashes.length), 0, deskDash()); if (canEdit()) setTimeout(() => saveLayout(true), 0); }
+  /* Sales desks made before tasks, appointments, conversations, the summary and campaigns existed get them, once. */
+  if (!A.desk2){ const dd = S.layout.dashes.find(d => d.items.some(i => i.t === 'ghl_deals')); if (dd){ A.desk2 = 1; deskUpgrade(dd); if (canEdit()) setTimeout(() => saveLayout(true), 0); } }
   if (LSNAP_OBJ !== S.layout){ LSNAP_OBJ = S.layout; LSNAP = JSON.stringify(S.layout); }
   return S.layout;
 }
@@ -1326,7 +1333,7 @@ function renderApp(){
     '<main class="wrap' + (S.editing ? ' editing' : '') + '">' +
     '<div class="seg mob-period" data-period>' + PERIODS.map(p => '<button type="button" data-p="' + p[0] + '"' + (p[0] === S.period ? ' class="on"' : '') + '>' + p[1] + '</button>').join('') + '</div>' +
     (me.edge ? '<div class="edgebar">' + ic('edit', 15) + '<div class="eb-t"><b>You’re arranging this dashboard as EDGE.</b> Whatever you set here is exactly what ' + esc(me.user.name || me.user.email) + ' sees.</div>' +
-      '<button class="btn eb-std" type="button" data-std title="Every new login, and any login without a dashboard of its own, starts with these dashboards and tabs">' + ic('grid', 14) + 'Make this the standard for new logins</button>' + (srcOf() === 'easyleads' ? '<button class="btn eb-wr' + (me.write ? ' on' : '') + '" type="button" data-wr title="Let this login change deals, contacts, tasks, appointments and messages in Easyleads from the dashboard">' + ic('bolt', 14) + 'Changes in Easyleads: ' + (me.write ? 'On' : 'Off') + '</button>' : '') + '</div>' : '') +
+      '<button class="btn eb-std" type="button" data-std title="Every new login, and any login without a dashboard of its own, starts with these dashboards and tabs">' + ic('grid', 14) + 'Make this the standard for new logins</button>' + (srcOf() === 'easyleads' ? '<label class="btn eb-wr' + (ghLogin() ? ' on' : '') + '" title="What this login may change in Easyleads from the dashboard">' + ic('bolt', 14) + 'Easyleads access:<select data-wr>' + GH_LV.map((n, i) => '<option value="' + i + '"' + (ghLogin() === i ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></label>' : '') + '</div>' : '') +
     (VD.length > 1 || canEdit() ? '<div class="tabs" role="tablist">' + VD.map(d => { const hid = !visDash(d); return '<button class="tab' + (d === dash ? ' on' : '') + '" type="button" role="tab" data-dash="' + L.dashes.indexOf(d) + '"' + (hid ? ' style="opacity:.5" title="Hidden from this business until something on it is available"' : '') + '>' + esc(d.name) + (hid ? ' · hidden' : '') + '</button>'; }).join('') +
       (canEdit() ? '<button class="tab add" type="button" data-newdash>' + ic('plus', 14) + ' New dashboard</button>' : '') + '</div>' : '') +
     '<div class="bar"><div><h2>' + esc(dash.name) + '</h2><div class="sub">' + ic('cal', 13) + esc(rangeText()) + ' <span style="opacity:.5">·</span> <span class="ro">' + (canGhl() && dash.items.some(i => W[i.t] && W[i.t].wr) ? ic('bolt', 12) + 'Changes on this dashboard go live in ' + esc(BRAND) + '</span>' : ic('lock', 12) + (srcOf() === 'site' ? 'Read-only view of your website leads' : 'Read-only view of your ' + esc(BRAND) + ' account') + '</span>') + '</div></div><div class="grow"></div>' +
@@ -1352,12 +1359,12 @@ function wireTop(){
     layout().dashes.push({id: uid(), name: name.trim().slice(0, 40), items: [item('kpis')]});
     S.dash = layout().dashes.length - 1; S.editing = true; saveLayout(); renderApp();
   });
-  const wr = q('[data-wr]'); if (wr) wr.addEventListener('click', async () => {
-    const on = !S.me.write; wr.disabled = true;
-    try{ const j = await api('portalSetWrite', {session: S.session, on}); if (j.error) throw new Error(j.error); S.me.write = on;
-      const L2 = layout(); if (on && !L2.dashes.some(d => d.items.some(i => W[i.t] && W[i.t].wr))){ L2.dashes.splice(Math.min(1, L2.dashes.length), 0, deskDash()); (L2.auto = L2.auto || {}).desk = 1; saveLayout(true); }
-      toast(on ? 'Changes in Easyleads are on for this login' : 'Changes in Easyleads are off for this login'); renderApp(); }
-    catch(e){ toast(e.message); wr.disabled = false; }
+  const wr = q('[data-wr]'); if (wr) wr.addEventListener('change', async () => {
+    const lv = Number(wr.value) || 0, was = ghLogin(); wr.disabled = true;
+    try{ const j = await api('portalSetWrite', {session: S.session, level: lv}); if (j.error) throw new Error(j.error); S.me.ghl = lv; S.me.write = lv > 0;
+      const L2 = layout(); if (lv && !L2.dashes.some(d => d.items.some(i => W[i.t] && W[i.t].wr))){ L2.dashes.splice(Math.min(1, L2.dashes.length), 0, deskDash()); const A2 = (L2.auto = L2.auto || {}); A2.desk = 1; A2.desk2 = 1; saveLayout(true); }
+      toast((S.me.user.name || 'This login') + ': Easyleads access set to ' + GH_LV[lv]); renderApp(); }
+    catch(e){ toast(e.message); wr.value = String(was); wr.disabled = false; }
   });
   const sd = q('[data-std]'); if (sd) sd.addEventListener('click', async () => {
     if (!confirm('Make these dashboards and tabs the standard for every new login?\n\nLogins that already have their own dashboard keep it.')) return;
@@ -2686,7 +2693,14 @@ async function markSetQuiet(r, s, M, onDone){
 /* ---------- Sales desk: change things in Easyleads (GoHighLevel) straight from the dashboard ----------
    Only for Easyleads businesses, and only for logins EDGE switched on (or EDGE itself). Every change
    is applied in Easyleads at once, logged on the tracker, and can be undone with Ctrl+Z. */
-const canGhl = () => !!(S.me && (S.me.write || S.me.edge)) && srcOf() === 'easyleads';
+/* Access levels EDGE sets per login: 0 View only, 1 Notes & tasks, 2 Sales, 3 Full. EDGE itself can do everything.
+   The backend checks the same levels on every action; the page only hides what a login can't use. */
+const GH_LV = ['View only', 'Notes & tasks', 'Sales', 'Full'];
+const GH_LV_D = ['Sees the dashboard. Can’t change anything in Easyleads.', 'Adds notes and tasks, ticks tasks off and tags contacts.', 'Also moves deals, edits contact details, books, moves and cancels appointments and drafts campaigns.', 'Also sends texts and emails, and sends campaigns.'];
+const ghLogin = () => !S.me ? 0 : S.me.ghl != null ? Number(S.me.ghl) || 0 : (S.me.write ? 3 : 0);
+const ghLv = () => !S.me ? 0 : S.me.edge ? 3 : ghLogin();
+const ghCan = n => ghLv() >= n;
+const canGhl = () => ghLv() > 0 && srcOf() === 'easyleads';
 async function ghl(op, p, o){
   const j = await api('portalGhl', {session: S.session, domain: S.domain, op, p: p || {}, undo: !!(o && o.undo)});
   if (!j || j.error){ const e = new Error((j && j.error) || 'Easyleads didn’t answer.'); e.code = j && j.code; throw e; }
@@ -2697,7 +2711,7 @@ async function ghlDo(op, p, label){
   const j = await ghl(op, p);
   document.dispatchEvent(new CustomEvent('el-ghl', {detail: {domain: S.domain, op}}));
   if (j.undo){ const u = j.undo; undoPush(label, async () => { await ghl(u.op, u.p, {undo: true}); document.dispatchEvent(new CustomEvent('el-ghl', {detail: {domain: S.domain, op: u.op}})); }); }
-  else toast(label);
+  else { document.querySelectorAll('.toast.ut').forEach(x => x.remove()); toast(label); }
   return j;
 }
 const ghlErr = e => '<div class="err">' + ic('lock', 22) + '<br><b>' + (e && e.code === 'scope' ? 'One more permission needed' : 'Easyleads didn’t answer') + '</b><br>' + esc(e && e.message || 'Try again in a moment.') + '</div>';
@@ -2715,7 +2729,7 @@ const ghStatus = {open: ['Open', '#1d7cf2'], won: ['Won', '#0f9d6b'], lost: ['Lo
 /* ----- Deals pipeline: drag a deal to another stage and it moves in Easyleads ----- */
 function drawGhlDeals(h, D, it){
   const st = S.ui[it.id] = S.ui[it.id] || {pipe: '', q: ''};
-  h.innerHTML = '<div class="gh-top">' + ghLive + '<select class="gh-sel" data-pipe><option>Loading pipelines…</option></select><label class="search gh-q">' + ic('search', 16) + '<input type="search" data-q placeholder="Find a deal or contact…" value="' + esc(st.q) + '"></label><button class="btn go sm" type="button" data-new>' + ic('plus', 14) + 'New deal</button></div>' +
+  h.innerHTML = '<div class="gh-top">' + ghLive + '<select class="gh-sel" data-pipe><option>Loading pipelines…</option></select><label class="search gh-q">' + ic('search', 16) + '<input type="search" data-q placeholder="Find a deal or contact…" value="' + esc(st.q) + '"></label>' + (ghCan(2) ? '<button class="btn go sm" type="button" data-new>' + ic('plus', 14) + 'New deal</button>' : '') + '</div>' +
     '<div class="cr-board gh-board" data-b>' + Array.from({length: 4}, () => '<div class="cr-col">' + crmLoading(3) + '</div>').join('') + '</div>';
   const B = h.querySelector('[data-b]'), sel = h.querySelector('[data-pipe]');
   let pipes = [], opps = [];
@@ -2727,7 +2741,7 @@ function drawGhlDeals(h, D, it){
     B.innerHTML = pl.stages.map((s, si) => {
       const L = list.filter(o => o.stageId === s.id), sum = L.reduce((a, o) => a + o.value, 0), col = ['#1d7cf2', '#7c3aed', '#d9820b', '#0891b2', '#0f9d6b', '#db2777', '#475569'][si % 7];
       return '<div class="cr-col" data-st="' + esc(s.id) + '" style="--c:' + col + '"><div class="cr-ch"><i></i>' + esc(s.name) + '<b>' + fmt(L.length) + '</b>' + (sum ? '<em>' + money(sum) + '</em>' : '') + '</div><div class="cr-cards">' +
-        (L.length ? L.map(o => '<div class="cr-card" draggable="true" data-id="' + esc(o.id) + '"><div class="cc-top"><span class="cc-av" style="background:' + hue(o.contact) + '">' + esc(initials(o.contact)) + '</span><div class="cc-n"><b>' + esc(o.name) + '</b><small>' + esc(o.contact) + '</small></div>' + (o.value ? '<em>' + money(o.value) + '</em>' : '') + '</div>' +
+        (L.length ? L.map(o => '<div class="cr-card" draggable="' + (ghCan(2) ? 'true' : 'false') + '" data-id="' + esc(o.id) + '"><div class="cc-top"><span class="cc-av" style="background:' + hue(o.contact) + '">' + esc(initials(o.contact)) + '</span><div class="cc-n"><b>' + esc(o.name) + '</b><small>' + esc(o.contact) + '</small></div>' + (o.value ? '<em>' + money(o.value) + '</em>' : '') + '</div>' +
           (o.status !== 'open' ? '<div class="cc-meta"><span class="cr-st" style="--c:' + (ghStatus[o.status] || ghStatus.open)[1] + '"><i></i>' + esc((ghStatus[o.status] || ghStatus.open)[0]) + '</span></div>' : '') + '</div>').join('') : '<div class="cr-empty">Drop a deal here</div>') + '</div></div>';
     }).join('');
     B.querySelectorAll('.cr-card').forEach(card => {
@@ -2739,7 +2753,7 @@ function drawGhlDeals(h, D, it){
       col.addEventListener('dragover', e => { e.preventDefault(); col.classList.add('over'); });
       col.addEventListener('dragleave', e => { if (!col.contains(e.relatedTarget)) col.classList.remove('over'); });
       col.addEventListener('drop', async e => {
-        e.preventDefault(); col.classList.remove('over');
+        e.preventDefault(); col.classList.remove('over'); if (!ghCan(2)) return;
         const o = opps.find(x => x.id === e.dataTransfer.getData('text/plain')), sid = col.dataset.st;
         if (!o || o.stageId === sid) return;
         const was = o.stageId, sname = (pl.stages.find(s => s.id === sid) || {}).name;
@@ -2759,7 +2773,7 @@ function drawGhlDeals(h, D, it){
   };
   sel.addEventListener('change', () => { st.pipe = sel.value; opps = []; B.innerHTML = Array.from({length: 4}, () => '<div class="cr-col">' + crmLoading(3) + '</div>').join(''); load(); });
   h.querySelector('[data-q]').addEventListener('input', e => { st.q = e.target.value; render(); });
-  h.querySelector('[data-new]').addEventListener('click', () => { const pl = pipe(); if (pl) ghlNewDeal(pl); });
+  const nb = h.querySelector('[data-new]'); if (nb) nb.addEventListener('click', () => { const pl = pipe(); if (pl) ghlNewDeal(pl); });
   load(); ghlWire(h, load);
 }
 /* A deal: value, status and stage, all saved in Easyleads. */
@@ -2783,6 +2797,7 @@ function ghlDeal(o, pl){
       catch(e){ inp.value = was || ''; toast(e.message); }
     }));
     const ct = box.querySelector('[data-ct]'); if (ct) ct.addEventListener('click', () => { b.close(); ghlContact(o.contactId, o.contact); });
+    if (!ghCan(2)){ box.querySelectorAll('[data-s],[data-status],[data-f]').forEach(x => { x.disabled = true; }); box.insertAdjacentHTML('afterbegin', '<div class="gh-note gh-ro">' + ic('lock', 12) + 'Changing deals needs Sales access.</div>'); }
   };
   paint();
 }
@@ -2839,11 +2854,11 @@ function ghlContact(id, name){
     const c = C.contact, notes = C.notes || [], tasks = C.tasks || [], appts = (C.appts || []).filter(a => a.status !== 'cancelled').sort((x, y) => new Date(x.start) - new Date(y.start));
     b.querySelector('.dh h3').textContent = c.name;
     box.innerHTML =
-      '<div class="gh-acts">' + [['note', 'edit', 'Note'], ['task', 'check', 'Task'], ['appt', 'cal', 'Appointment'], ['msg', 'send', 'Message'], ['deal', 'money', 'Deal']].map(x => '<button type="button" data-tab="' + x[0] + '"' + (tab === x[0] ? ' class="on"' : '') + '>' + ic(x[1], 15) + x[2] + '</button>').join('') + '</div>' +
+      '<div class="gh-acts">' + [['note', 'edit', 'Note', 1], ['task', 'check', 'Task', 1], ['appt', 'cal', 'Appointment', 2], ['msg', 'send', 'Message', 3], ['deal', 'money', 'Deal', 2]].map(x => '<button type="button" data-tab="' + x[0] + '"' + (tab === x[0] ? ' class="on"' : '') + (ghCan(x[3]) ? '' : ' disabled title="Needs ' + GH_LV[x[3]] + ' access"') + '>' + ic(ghCan(x[3]) ? x[1] : 'lock', 15) + x[2] + '</button>').join('') + '</div>' +
       '<div class="gh-panel" data-panel></div>' +
-      '<div class="pp-h">' + ic('users', 14) + 'Details</div><div class="cr-fields gh-two">' + [['firstName', 'First name'], ['lastName', 'Last name'], ['email', 'Email'], ['phone', 'Phone'], ['companyName', 'Company']].map(f => '<label><span>' + esc(f[1]) + '</span><input data-f="' + f[0] + '" value="' + esc(c[f[0]]) + '"></label>').join('') + '</div>' +
+      '<div class="pp-h">' + ic('users', 14) + 'Details</div><div class="cr-fields gh-two">' + [['firstName', 'First name'], ['lastName', 'Last name'], ['email', 'Email'], ['phone', 'Phone'], ['companyName', 'Company']].map(f => '<label><span>' + esc(f[1]) + '</span><input data-f="' + f[0] + '" value="' + esc(c[f[0]]) + '"' + (ghCan(2) ? '' : ' disabled') + '></label>').join('') + '</div>' +
       '<div class="pp-h">' + ic('spark', 14) + 'Tags</div><div class="gh-tagbox">' + (c.tags || []).map(t => '<span class="gh-tag">' + esc(t) + '<button type="button" data-untag="' + esc(t) + '" aria-label="Remove tag">' + ic('x', 10) + '</button></span>').join('') + '<input data-tag placeholder="Add a tag and press Enter"></div>' +
-      '<div class="pp-h">' + ic('cal', 14) + 'Appointments</div><div class="gh-items">' + (appts.length ? appts.map(a => '<div class="gh-item"><span class="cr-evi" style="--c:#0891b2">' + ic('cal', 12) + '</span><div><b>' + esc(a.title || 'Appointment') + '</b><small>' + esc(when(a.start)) + ' · ' + esc(a.status || '') + '</small></div><div class="gh-ia"><button class="cr-ib" type="button" data-move="' + esc(a.id) + '" data-cal="' + esc(a.calendarId) + '">Move</button><button class="cr-ib" type="button" data-cancel="' + esc(a.id) + '">Cancel</button></div></div>').join('') : '<div class="cr-empty">No upcoming appointments.</div>') + '</div>' +
+      '<div class="pp-h">' + ic('cal', 14) + 'Appointments</div><div class="gh-items">' + (appts.length ? appts.map(a => '<div class="gh-item"><span class="cr-evi" style="--c:#0891b2">' + ic('cal', 12) + '</span><div><b>' + esc(a.title || 'Appointment') + '</b><small>' + esc(when(a.start)) + ' · ' + esc(a.status || '') + '</small></div>' + (ghCan(2) ? '<div class="gh-ia"><button class="cr-ib" type="button" data-move="' + esc(a.id) + '" data-cal="' + esc(a.calendarId) + '">Move</button><button class="cr-ib" type="button" data-cancel="' + esc(a.id) + '">Cancel</button></div>' : '') + '</div>').join('') : '<div class="cr-empty">No upcoming appointments.</div>') + '</div>' +
       '<div class="pp-h">' + ic('check', 14) + 'Tasks</div><div class="gh-items">' + (tasks.length ? tasks.map(t => '<label class="gh-item gh-task' + (t.done ? ' done' : '') + '"><input type="checkbox" data-task="' + esc(t.id) + '"' + (t.done ? ' checked' : '') + '><div><b>' + esc(t.title) + '</b><small>' + (t.due ? 'Due ' + esc(when(t.due)) : 'No due date') + '</small></div></label>').join('') : '<div class="cr-empty">No tasks.</div>') + '</div>' +
       '<div class="pp-h">' + ic('edit', 14) + 'Notes</div><div class="cr-notes">' + (notes.length ? notes.map(n => '<div class="cr-nt"><span class="cc-av" style="background:#475569">' + ic('edit', 12) + '</span><div><div class="cr-nh"><small>' + esc(when(n.at)) + '</small></div><div class="cr-nx">' + esc(ghNoteText(n.body)) + '</div></div></div>').join('') : '<div class="cr-empty">No notes yet.</div>') + '</div>';
     panel();
@@ -2922,6 +2937,358 @@ function ghlNewDealFor(pl, c){
   const q = m.querySelector('[data-cq]'); q.value = c.email || c.phone || c.name; q.dispatchEvent(new Event('input'));
 }
 
+
+/* ----- Pipeline summary: deals and value per stage, won this month, win rate ----- */
+function drawGhlPipe(h, D, it){
+  const st = S.ui[it.id] = S.ui[it.id] || {pipe: ''};
+  h.innerHTML = '<div class="gh-top">' + ghLive + '<select class="gh-sel" data-pipe hidden></select></div><div data-b>' + crmLoading(3) + '</div>';
+  const B = h.querySelector('[data-b]'), sel = h.querySelector('[data-pipe]');
+  let P = null;
+  const tile = (label, val, note, icon, tint) => '<div class="kpi" style="--t:' + tint + ';cursor:default"><div class="l">' + esc(label) + ic(icon, 16) + '</div><div class="v">' + val + '</div><div class="n">' + note + '</div></div>';
+  const render = () => {
+    if (!P) return;
+    const pls = P.pipelines || [], pl = pls.find(x => x.id === st.pipe) || pls[0];
+    if (!pl){ B.innerHTML = '<div class="empty">No pipelines in this Easyleads account yet.</div>'; return; }
+    const all = (P.opps || []).filter(o => o.pipelineId === pl.id), open = all.filter(o => o.status === 'open');
+    const now = new Date(), m0 = new Date(now.getFullYear(), now.getMonth(), 1).getTime(), r = range(), inR = t => { const x = new Date(t).getTime(); return x >= r.s && x < r.e + day; };
+    const wonM = all.filter(o => o.status === 'won' && new Date(o.sat).getTime() >= m0), wonP = all.filter(o => o.status === 'won' && inR(o.sat)), lostP = all.filter(o => o.status === 'lost' && inR(o.sat));
+    const rate = wonP.length + lostP.length ? Math.round(wonP.length / (wonP.length + lostP.length) * 100) + '%' : '—';
+    const newP = all.filter(o => inR(o.at));
+    const sum = L => L.reduce((a, o) => a + o.value, 0);
+    const max = Math.max(1, ...pl.stages.map(s => open.filter(o => o.stageId === s.id).length));
+    B.innerHTML = '<div class="kpis gh-kpis">' +
+      tile('Open pipeline', money(sum(open)), fmt(open.length) + ' open deal' + (open.length === 1 ? '' : 's'), 'money', '#1d7cf2') +
+      tile('Won this month', money(sum(wonM)), fmt(wonM.length) + ' deal' + (wonM.length === 1 ? '' : 's') + ' won since the 1st', 'check', '#0f9d6b') +
+      tile('Win rate', rate, wonP.length + lostP.length ? fmt(wonP.length) + ' won, ' + fmt(lostP.length) + ' lost · ' + esc(rangeText()) : 'no deals won or lost in this period', 'target', '#7c3aed') +
+      tile('New deals', fmt(newP.length), money(sum(newP)) + ' added · ' + esc(rangeText()), 'plus', '#d9820b') + '</div>' +
+      '<div class="gh-stages">' + pl.stages.map((s, si) => { const L = open.filter(o => o.stageId === s.id), col = ['#1d7cf2', '#7c3aed', '#d9820b', '#0891b2', '#0f9d6b', '#db2777', '#475569'][si % 7];
+        return '<div class="gh-stg" style="--c:' + col + '"><div class="gh-sn"><i></i>' + esc(s.name) + '</div><div class="gh-bar"><span style="width:' + Math.max(L.length ? 4 : 0, L.length / max * 100) + '%"></span></div><b>' + fmt(L.length) + '</b><em>' + money(sum(L)) + '</em></div>'; }).join('') + '</div>';
+  };
+  const load = async quiet => {
+    try{
+      P = await ghl('pipe.sum');
+      const pls = P.pipelines || []; if (!st.pipe && pls[0]) st.pipe = pls[0].id;
+      sel.hidden = pls.length < 2; sel.innerHTML = pls.map(x => '<option value="' + esc(x.id) + '"' + (x.id === st.pipe ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('');
+      if (h.isConnected) render();
+    }catch(e){ if (!quiet) B.innerHTML = ghlErr(e); }
+  };
+  sel.addEventListener('change', () => { st.pipe = sel.value; render(); });
+  load(); ghlWire(h, load);
+}
+
+/* ----- Tasks due: every open task in the account, ticked off right here ----- */
+function drawGhlTasks(h, D, it){
+  const st = S.ui[it.id] = S.ui[it.id] || {f: 'due'};
+  h.innerHTML = '<div class="gh-top">' + ghLive + '<div class="seg" data-f>' + [['due', 'Due now'], ['all', 'All open']].map(x => '<button type="button" data-v="' + x[0] + '"' + (st.f === x[0] ? ' class="on"' : '') + '>' + x[1] + '</button>').join('') + '</div></div><div class="gh-tl" data-l>' + crmLoading(4) + '</div>';
+  const L = h.querySelector('[data-l]');
+  let T = null;
+  const day0 = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); };
+  const grp = t => { if (!t.due) return 'none'; const x = new Date(t.due).getTime(), d0 = day0(); return x < Date.now() && x < d0 + day ? (x < d0 ? 'late' : 'today') : x < d0 + day ? 'today' : 'soon'; };
+  const G = [['late', 'Overdue', '#e0413a', 'clock'], ['today', 'Today', '#d9820b', 'cal'], ['soon', 'Coming up', '#1d7cf2', 'chev'], ['none', 'No due date', '#8a93a3', 'check']];
+  const whenT = s => { const x = new Date(s), d0 = day0(); const t = x.toLocaleTimeString('en-CA', {hour: 'numeric', minute: '2-digit'}); return x.getTime() >= d0 && x.getTime() < d0 + day ? 'Today ' + t : x.getTime() >= d0 + day && x.getTime() < d0 + 2 * day ? 'Tomorrow ' + t : x.toLocaleDateString('en-CA', {weekday: 'short', month: 'short', day: 'numeric'}) + ' ' + t; };
+  const render = () => {
+    if (!T) return;
+    const list = T.filter(t => st.f === 'all' || ['late', 'today'].indexOf(grp(t)) > -1);
+    if (!list.length){ L.innerHTML = '<div class="gh-done">' + ic('check', 22) + '<b>' + (st.f === 'due' ? 'Nothing due right now' : 'No open tasks') + '</b><small>' + (st.f === 'due' && T.length ? fmt(T.length) + ' task' + (T.length === 1 ? '' : 's') + ' coming up later.' : 'Add a task from any contact card.') + '</small></div>'; return; }
+    L.innerHTML = G.map(g => { const R = list.filter(t => grp(t) === g[0]); if (!R.length) return '';
+      return '<div class="gh-tg"><div class="gh-th" style="--c:' + g[2] + '">' + ic(g[3], 13) + g[1] + '<b>' + fmt(R.length) + '</b></div>' + R.map(t => '<div class="gh-tr" data-t="' + esc(t.id) + '"><label class="gh-ck"><input type="checkbox" data-done' + (ghCan(1) ? '' : ' disabled') + '><i></i></label><div class="gh-tx"><b>' + esc(t.title) + '</b><small>' + (t.contact ? '<button type="button" class="gh-lk" data-ct>' + esc(t.contact) + '</button> · ' : '') + (t.due ? '<span' + (g[0] === 'late' ? ' class="late"' : '') + '>' + esc(whenT(t.due)) + '</span>' : 'No due date') + '</small></div></div>').join('') + '</div>'; }).join('');
+    L.querySelectorAll('.gh-tr').forEach(row => {
+      const t = T.find(x => x.id === row.dataset.t);
+      const ct = row.querySelector('[data-ct]'); if (ct) ct.addEventListener('click', () => ghlContact(t.contactId, t.contact));
+      row.querySelector('[data-done]').addEventListener('change', async e => {
+        row.classList.add('going');
+        try{ await ghlDo('task.done', {id: t.contactId, taskId: t.id, done: true}, 'Done: ' + t.title); }
+        catch(err){ row.classList.remove('going'); e.target.checked = false; toast(err.message); return; }
+        setTimeout(() => { T = T.filter(x => x !== t); render(); }, 380);
+      });
+    });
+  };
+  const load = async quiet => {
+    try{ T = (await ghl('tasks.all')).tasks || []; if (h.isConnected) keepScroll(h, '.gh-tl', render); }
+    catch(e){ if (!quiet) L.innerHTML = ghlErr(e); }
+  };
+  h.querySelectorAll('[data-v]').forEach(b => b.addEventListener('click', () => { st.f = b.dataset.v; h.querySelectorAll('[data-v]').forEach(x => x.classList.toggle('on', x === b)); render(); }));
+  load(); ghlWire(h, load);
+}
+
+/* ----- Appointments: today's bookings on every calendar ----- */
+const ghApSt = {confirmed: ['Confirmed', '#0f9d6b'], new: ['New', '#1d7cf2'], showed: ['Showed', '#0891b2'], noshow: ['No-show', '#e0413a'], cancelled: ['Cancelled', '#8a93a3'], invalid: ['Invalid', '#8a93a3']};
+function drawGhlAppts(h, D, it){
+  const st = S.ui[it.id] = S.ui[it.id] || {d: 'today'};
+  h.innerHTML = '<div class="gh-top">' + ghLive + '<div class="seg" data-f>' + [['today', 'Today'], ['tomorrow', 'Tomorrow'], ['week', 'Next 7 days']].map(x => '<button type="button" data-v="' + x[0] + '"' + (st.d === x[0] ? ' class="on"' : '') + '>' + x[1] + '</button>').join('') + '</div></div><div class="gh-al" data-l>' + crmLoading(4) + '</div>';
+  const L = h.querySelector('[data-l]');
+  let A = null, seq = 0;
+  const span = () => { const d = new Date(); d.setHours(0, 0, 0, 0); const s = d.getTime() + (st.d === 'tomorrow' ? day : 0); return {from: s, to: s + (st.d === 'week' ? 7 : 1) * day}; };
+  const render = () => {
+    const list = (A || []).filter(a => a.status !== 'cancelled' || st.d === 'today');
+    if (!list.length){ L.innerHTML = '<div class="gh-done">' + ic('cal', 22) + '<b>No appointments ' + (st.d === 'today' ? 'today' : st.d === 'tomorrow' ? 'tomorrow' : 'in the next 7 days') + '</b><small>Bookings from every Easyleads calendar show here.</small></div>'; return; }
+    let lastDay = '';
+    L.innerHTML = list.map(a => {
+      const s = new Date(a.start), dk = s.toDateString(), stt = ghApSt[a.status] || ghApSt.confirmed, past = s.getTime() < Date.now(), dead = a.status === 'cancelled';
+      const head = st.d === 'week' && dk !== lastDay ? '<div class="gh-ad">' + s.toLocaleDateString('en-CA', {weekday: 'long', month: 'short', day: 'numeric'}) + '</div>' : ''; lastDay = dk;
+      const can = ghCan(2) && !dead;
+      return head + '<div class="gh-ap' + (dead ? ' dead' : '') + '" data-a="' + esc(a.id) + '"><div class="gh-at"><b>' + s.toLocaleTimeString('en-CA', {hour: 'numeric', minute: '2-digit'}) + '</b>' + (a.end ? '<small>' + Math.max(5, Math.round((new Date(a.end) - s) / 6e4)) + ' min</small>' : '') + '</div>' +
+        '<div class="gh-ai"><b>' + esc(a.contact || a.title) + '</b><small>' + esc([a.contact && a.title !== a.contact ? a.title : '', a.calendar].filter(Boolean).join(' · ')) + '</small><span class="cr-st" style="--c:' + stt[1] + '"><i></i>' + stt[0] + '</span></div>' +
+        (can ? '<div class="gh-aa">' + (a.status !== 'confirmed' && !past ? '<button class="cr-ib" type="button" data-s="confirmed">' + ic('check', 12) + 'Confirm</button>' : '') +
+          (past && a.status !== 'showed' ? '<button class="cr-ib" type="button" data-s="showed">Showed</button>' : '') +
+          (a.status !== 'noshow' ? '<button class="cr-ib" type="button" data-s="noshow">No-show</button>' : '') +
+          '<button class="cr-ib" type="button" data-mv>Move</button><button class="cr-ib bad" type="button" data-s="cancelled">Cancel</button></div>' : (a.contactId ? '<div class="gh-aa"><button class="cr-ib" type="button" data-open>Open</button></div>' : '')) + '</div>';
+    }).join('');
+    L.querySelectorAll('.gh-ap').forEach(row => {
+      const a = A.find(x => x.id === row.dataset.a);
+      row.querySelector('.gh-ai b').addEventListener('click', () => { if (a.contactId) ghlContact(a.contactId, a.contact); });
+      const op = row.querySelector('[data-open]'); if (op) op.addEventListener('click', () => ghlContact(a.contactId, a.contact));
+      row.querySelectorAll('[data-s]').forEach(b => b.addEventListener('click', async () => {
+        const s = b.dataset.s; if (s === 'cancelled' && !confirm('Cancel ' + (a.contact || 'this') + '’s appointment in Easyleads?')) return;
+        const was = a.status; a.status = s; render();
+        try{ await ghlDo('appt.status', {eventId: a.id, status: s}, (ghApSt[s] || [s])[0] + ': ' + (a.contact || a.title)); }
+        catch(e){ a.status = was; render(); toast(e.message); }
+      }));
+      const mv = row.querySelector('[data-mv]'); if (mv) mv.addEventListener('click', () => ghlMoveAppt(a));
+    });
+  };
+  const load = async quiet => {
+    const my = ++seq;
+    try{ const j = await ghl('appts.range', span()); if (my !== seq || !h.isConnected) return; A = j.appts || []; keepScroll(h, '.gh-al', render); }
+    catch(e){ if (!quiet && my === seq) L.innerHTML = ghlErr(e); }
+  };
+  h.querySelectorAll('[data-v]').forEach(b => b.addEventListener('click', () => { st.d = b.dataset.v; h.querySelectorAll('[data-v]').forEach(x => x.classList.toggle('on', x === b)); A = null; L.innerHTML = crmLoading(3); load(); }));
+  load(); ghlWire(h, load);
+}
+/* Pick a new time for an appointment on its own calendar. */
+function ghlMoveAppt(a){
+  const m = document.createElement('div'); m.className = 'modal-back';
+  m.innerHTML = '<div class="modal gh-modal" role="dialog" aria-modal="true"><div class="gh-mh"><div><h2>Move ' + esc(a.contact || 'the appointment') + '</h2>' + ghLive + '</div><button class="iconbtn" type="button" data-x aria-label="Close">' + ic('x') + '</button></div>' +
+    '<p class="gh-sub">Now ' + esc(new Date(a.start).toLocaleString('en-CA', {weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'})) + ' · ' + esc(a.calendar || '') + '</p><div class="gh-cal"><div class="gh-days" data-days>' + crmLoading(1) + '</div><div class="gh-slots" data-slots></div></div></div>';
+  document.body.appendChild(m);
+  const close = () => m.remove();
+  m.addEventListener('click', e => { if (e.target === m) close(); });
+  m.querySelector('[data-x]').addEventListener('click', close);
+  const days = m.querySelector('[data-days]'), sl = m.querySelector('[data-slots]');
+  let slots = {}, dsel = '';
+  const showDays = () => { const ks = Object.keys(slots).sort(); days.innerHTML = ks.length ? ks.slice(0, 10).map(k => { const dt = new Date(k + 'T12:00:00'); return '<button type="button" data-day="' + k + '"' + (k === dsel ? ' class="on"' : '') + '><small>' + dt.toLocaleDateString('en-CA', {weekday: 'short'}) + '</small><b>' + dt.getDate() + '</b><small>' + dt.toLocaleDateString('en-CA', {month: 'short'}) + '</small></button>'; }).join('') : '<div class="cr-empty">No free times in the next two weeks.</div>';
+    days.querySelectorAll('[data-day]').forEach(x => x.addEventListener('click', () => { dsel = x.dataset.day; showDays(); showSlots(); })); };
+  const showSlots = () => { const L = slots[dsel] || []; sl.innerHTML = L.map(s => '<button type="button" data-t="' + esc(s) + '">' + new Date(s).toLocaleTimeString('en-CA', {hour: 'numeric', minute: '2-digit'}) + '</button>').join('');
+    sl.querySelectorAll('[data-t]').forEach(x => x.addEventListener('click', async () => { x.disabled = true; x.classList.add('on');
+      const w2 = new Date(x.dataset.t).toLocaleString('en-CA', {weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'});
+      try{ await ghlDo('appt.move', {eventId: a.id, start: x.dataset.t}, 'Moved ' + (a.contact || 'the appointment') + ' to ' + w2); close(); }
+      catch(e){ toast(e.message); x.disabled = false; x.classList.remove('on'); } })); };
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Winnipeg', now = Date.now();
+  ghl('slots', {calendarId: a.calendarId, from: now, to: now + 14 * day, tz}).then(j => { slots = j.slots || {}; dsel = Object.keys(slots).sort()[0] || ''; showDays(); showSlots(); }, e => { days.innerHTML = ghlErr(e); });
+}
+
+/* ----- Conversations: latest texts and emails, who is waiting for a reply, answer right here ----- */
+function drawGhlConvs(h, D, it){
+  const st = S.ui[it.id] = S.ui[it.id] || {f: 'all', q: '', open: ''};
+  h.innerHTML = '<div class="gh-top">' + ghLive + '<div class="seg" data-f>' + [['all', 'All'], ['wait', 'Waiting for a reply'], ['unread', 'Unread']].map(x => '<button type="button" data-v="' + x[0] + '"' + (st.f === x[0] ? ' class="on"' : '') + '>' + x[1] + '</button>').join('') + '</div><label class="search gh-q">' + ic('search', 16) + '<input type="search" data-q placeholder="Find a conversation…" value="' + esc(st.q) + '"></label></div>' +
+    '<div class="gh-cv"><div class="gh-cl" data-l>' + crmLoading(5) + '</div><div class="gh-th2" data-t><div class="gh-done">' + ic('inbox', 22) + '<b>Pick a conversation</b><small>Texts and emails with your contacts, newest first.</small></div></div></div>';
+  const L = h.querySelector('[data-l]'), TH = h.querySelector('[data-t]');
+  let C = null, t = 0, seq = 0, tseq = 0;
+  const tIc = x => /EMAIL/i.test(x) ? 'mail' : /CALL|PHONE/i.test(x) ? 'phone' : 'send';
+  const render = () => {
+    if (!C) return;
+    const list = C.filter(c => st.f === 'all' || (st.f === 'wait' ? c.dir === 'inbound' : c.unread > 0));
+    const nW = C.filter(c => c.dir === 'inbound').length, wb = h.querySelector('[data-v="wait"]'); if (wb) wb.innerHTML = 'Waiting for a reply' + (nW ? ' <b class="gh-n">' + nW + '</b>' : '');
+    L.innerHTML = list.length ? list.map(c => '<button type="button" class="gh-ci' + (c.id === st.open ? ' on' : '') + (c.unread ? ' unread' : '') + '" data-c="' + esc(c.id) + '"><span class="cc-av" style="background:' + hue(c.name) + '">' + esc(initials(c.name)) + '</span><span class="gh-cm"><span class="gh-cn"><b>' + esc(c.name) + '</b><small>' + (c.at ? esc(ago(new Date(c.at).getTime())) : '') + '</small></span><span class="gh-cs">' + ic(tIc(c.type), 12) + (c.dir === 'outbound' ? '<em>You:</em> ' : '') + esc(c.last || '(no text)') + '</span>' + (c.dir === 'inbound' ? '<span class="gh-wait">Waiting for a reply</span>' : '') + '</span></button>').join('')
+      : '<div class="empty">' + (st.f === 'wait' ? 'Nobody is waiting for a reply.' : st.f === 'unread' ? 'Nothing unread.' : 'No conversations yet.') + '</div>';
+    L.querySelectorAll('[data-c]').forEach(b => b.addEventListener('click', () => { st.open = b.dataset.c; L.querySelectorAll('[data-c]').forEach(x => x.classList.toggle('on', x === b)); thread(); }));
+  };
+  const thread = async quiet => {
+    const c = (C || []).find(x => x.id === st.open); if (!c) return;
+    const my = ++tseq;
+    if (!quiet) TH.innerHTML = '<div class="gh-tt"><span class="cc-av" style="background:' + hue(c.name) + '">' + esc(initials(c.name)) + '</span><div><b>' + esc(c.name) + '</b><small>' + esc([c.phone, c.email].filter(Boolean).join(' · ')) + '</small></div></div>' + crmLoading(3);
+    try{
+      const ms = (await ghl('conv', {id: c.id})).messages || []; if (my !== tseq || !TH.isConnected) return;
+      const lastT = (ms.filter(m => /SMS|EMAIL/i.test(m.type)).slice(-1)[0] || {}).type || (c.email && !c.phone ? 'EMAIL' : 'SMS');
+      const can = ghCan(3);
+      TH.innerHTML = '<div class="gh-tt"><span class="cc-av" style="background:' + hue(c.name) + '">' + esc(initials(c.name)) + '</span><div><b>' + esc(c.name) + '</b><small>' + esc([c.phone, c.email].filter(Boolean).join(' · ')) + '</small></div>' + (c.contactId ? '<button class="cr-ib" type="button" data-ct>' + ic('users', 12) + 'Contact card</button>' : '') + '</div>' +
+        '<div class="gh-ms" data-ms>' + (ms.length ? ms.map(m => '<div class="gh-m ' + (m.dir === 'outbound' ? 'out' : 'in') + '"><div class="gh-mb">' + (/CALL|PHONE/i.test(m.type) ? ic('phone', 12) + ' Call' : esc(m.body || '(no text)')) + '</div><small>' + ic(tIc(m.type), 10) + (m.at ? esc(new Date(m.at).toLocaleString('en-CA', {month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'})) : '') + '</small></div>').join('') : '<div class="cr-empty">No messages yet.</div>') + '</div>' +
+        (can ? '<div class="gh-rp"><div class="seg gh-mt">' + [['SMS', 'Text'], ['Email', 'Email']].map(x => '<button type="button" data-mt="' + x[0] + '"' + ((/EMAIL/i.test(lastT) ? 'Email' : 'SMS') === x[0] ? ' class="on"' : '') + '>' + x[1] + '</button>').join('') + '</div><input class="gh-subj" data-subj placeholder="Subject"' + (/EMAIL/i.test(lastT) ? '' : ' hidden') + '><div class="cr-comp"><textarea data-mx rows="2" placeholder="Write a reply to ' + esc(c.name) + '…"></textarea><button class="btn go sm" type="button" data-go>' + ic('send', 13) + 'Send</button></div><div class="gh-note">' + ic('lock', 12) + 'Sent from Easyleads. A sent message can’t be undone.</div></div>'
+          : '<div class="gh-note gh-ro">' + ic('lock', 12) + 'Replying needs Full access. Your Easyleads team can turn it on.</div>');
+      const box = TH.querySelector('[data-ms]'); box.scrollTop = box.scrollHeight;
+      const ct = TH.querySelector('[data-ct]'); if (ct) ct.addEventListener('click', () => ghlContact(c.contactId, c.name));
+      if (!can) return;
+      let type = /EMAIL/i.test(lastT) ? 'Email' : 'SMS';
+      TH.querySelectorAll('[data-mt]').forEach(x => x.addEventListener('click', () => { type = x.dataset.mt; TH.querySelectorAll('[data-mt]').forEach(y => y.classList.toggle('on', y === x)); TH.querySelector('[data-subj]').hidden = type !== 'Email'; }));
+      TH.querySelector('[data-go]').addEventListener('click', async e => {
+        const ta = TH.querySelector('[data-mx]'), msg = ta.value.trim(); if (!msg) return ta.focus();
+        if (type === 'SMS' && !c.phone) return toast(c.name + ' has no phone number in Easyleads.');
+        if (type === 'Email' && !c.email) return toast(c.name + ' has no email address in Easyleads.');
+        const btn = e.currentTarget; btn.disabled = true; btn.innerHTML = '<span class="spin"></span>Sending…';
+        try{ await ghlDo('message', {contactId: c.contactId, type, message: msg, subject: TH.querySelector('[data-subj]').value}, (type === 'Email' ? 'Email' : 'Text') + ' sent to ' + c.name); c.dir = 'outbound'; c.last = msg; c.unread = 0; render(); }
+        catch(err){ toast(err.message); btn.disabled = false; btn.innerHTML = ic('send', 13) + 'Send'; }
+      });
+    }catch(e){ if (my === tseq) TH.innerHTML = ghlErr(e); }
+  };
+  const load = async quiet => {
+    const my = ++seq;
+    try{ const r = (await ghl('convs', {q: st.q})).convs || []; if (my !== seq || !h.isConnected) return; C = r; keepScroll(h, '.gh-cl', render); if (st.open && quiet) thread(true); else if (st.open) thread(); }
+    catch(e){ if (!quiet && my === seq) L.innerHTML = ghlErr(e); }
+  };
+  h.querySelectorAll('[data-v]').forEach(b => b.addEventListener('click', () => { st.f = b.dataset.v; h.querySelectorAll('[data-v]').forEach(x => x.classList.toggle('on', x === b)); render(); }));
+  h.querySelector('[data-q]').addEventListener('input', e => { st.q = e.target.value.trim(); clearTimeout(t); t = setTimeout(load, 350); });
+  load(); ghlWire(h, load);
+}
+
+/* ----- Campaigns: draft a text or email campaign, pick who gets it by tags, preview it, send it ----- */
+const GH_TPL = {
+  SMS: [['Special offer', 'Hi {{first_name}}, it’s {{business}}. This month only we have a special offer for our clients. Reply YES and we’ll save you a spot!'],
+    ['Check-in', 'Hi {{first_name}}, just checking in from {{business}}. Is there anything we can help you with this month?'],
+    ['Review request', 'Hi {{first_name}}, thank you for choosing {{business}}! Would you mind leaving us a quick review? It means a lot to our team.']],
+  Email: [['Special offer', 'A special offer for you', 'Hi {{first_name}},\n\nThis month only, {{business}} has a special offer for our clients.\n\nJust reply to this email and we’ll get you booked in.\n\nTalk soon,\nThe {{business}} team'],
+    ['Newsletter', 'What’s new at {{business}}', 'Hi {{first_name}},\n\nHere’s a quick update from all of us at {{business}}.\n\n• \n• \n• \n\nAs always, just reply if there’s anything we can help with.\n\nThe {{business}} team'],
+    ['We miss you', 'It’s been a while, {{first_name}}', 'Hi {{first_name}},\n\nIt’s been a little while since we last saw you at {{business}}, and we’d love to help again.\n\nReply to this email or give us a call to book a time that suits you.\n\nThe {{business}} team']]
+};
+const ghCampSt = {draft: ['Draft', '#8a93a3'], sending: ['Sending paused', '#d9820b'], sent: ['Sent', '#0f9d6b']};
+function drawGhlCamp(h, D, it){
+  h.innerHTML = '<div class="gh-top">' + ghLive + '<div class="grow"></div><button class="btn go sm" type="button" data-new>' + ic('plus', 14) + 'New campaign</button></div><div class="gh-cg" data-l>' + crmLoading(3) + '</div>';
+  const L = h.querySelector('[data-l]');
+  const load = async quiet => {
+    try{
+      const ks = (await ghl('camp.list')).camps || []; if (!h.isConnected) return;
+      L.innerHTML = ks.length ? ks.map(k => { const s = ghCampSt[k.status] || ghCampSt.draft;
+        return '<button type="button" class="gh-kc" data-k="' + esc(k.id) + '"><div class="gh-kh"><span class="gh-kch ' + (k.channel === 'Email' ? 'em' : '') + '">' + ic(k.channel === 'Email' ? 'mail' : 'send', 13) + (k.channel === 'Email' ? 'Email' : 'Text') + '</span><span class="cr-st" style="--c:' + s[1] + '"><i></i>' + s[0] + '</span></div><b>' + esc(k.name) + '</b><p>' + (esc(String(k.channel === 'Email' && k.subject ? k.subject : k.body || '').slice(0, 110)).replace(/\{\{\s*(first_name|last_name|name|business)\s*\}\}/gi, (x, t) => '<i class="gh-tok">' + ({first_name: 'First name', last_name: 'Last name', name: 'Name', business: 'Business'})[t.toLowerCase()] + '</i>') || 'No message yet') + '</p><small>' + (k.tags && k.tags.length ? ic('spark', 11) + esc(k.tags.join(k.mode === 'all' ? ' + ' : ', ')) : ic('users', 11) + 'Everyone') + (k.sent ? ' · ' + fmt(k.sent) + ' sent' + (k.failed ? ', ' + fmt(k.failed) + ' failed' : '') : '') + '</small><small class="gh-kby">' + esc(k.by || '') + (k.updated ? ' · ' + esc(ago(k.updated)) : '') + '</small></button>'; }).join('')
+        : '<div class="gh-done gh-wide">' + ic('send', 22) + '<b>No campaigns yet</b><small>Write a text or email once, pick who gets it by tags, preview it and send it, all through Easyleads.</small></div>';
+      L.querySelectorAll('[data-k]').forEach(b => b.addEventListener('click', () => ghlCampEdit(ks.find(k => k.id === b.dataset.k), load)));
+    }catch(e){ if (!quiet) L.innerHTML = ghlErr(e); }
+  };
+  h.querySelector('[data-new]').addEventListener('click', () => ghlCampEdit(null, load));
+  load(); ghlWire(h, load);
+}
+function ghlCampEdit(k0, onDone){
+  const k = Object.assign({name: '', channel: 'SMS', subject: '', body: '', tags: [], mode: 'any', status: 'draft', sent: 0}, k0 || {});
+  const sent = k.status === 'sent', canSend = ghCan(3);
+  const m = document.createElement('div'); m.className = 'modal-back gh-kb';
+  m.innerHTML = '<div class="modal gh-km" role="dialog" aria-modal="true"><div class="gh-mh"><div><h2>' + (k0 ? esc(k.name || 'Campaign') : 'New campaign') + '</h2>' + ghLive + '</div><button class="iconbtn" type="button" data-x aria-label="Close">' + ic('x') + '</button></div>' +
+    '<div class="gh-kw"><div class="gh-kf">' +
+      '<label class="gh-fl"><span>Campaign name</span><input data-n maxlength="80" placeholder="e.g. November check-in" value="' + esc(k.name) + '"></label>' +
+      '<div class="gh-fl"><span>Send as</span><div class="seg gh-ch" data-ch>' + [['SMS', 'send', 'Text message'], ['Email', 'mail', 'Email']].map(x => '<button type="button" data-v="' + x[0] + '"' + (k.channel === x[0] ? ' class="on"' : '') + '>' + ic(x[1], 14) + x[2] + '</button>').join('') + '</div></div>' +
+      '<div class="gh-fl"><span>Who gets it</span><div class="gh-aud" data-aud>' + crmLoading(1) + '</div></div>' +
+      '<div class="gh-fl"><span>Start from</span><div class="gh-tpl" data-tpl></div></div>' +
+      '<label class="gh-fl" data-subjw><span>Subject line</span><input data-s maxlength="200" placeholder="What the email is about" value="' + esc(k.subject) + '"></label>' +
+      '<label class="gh-fl"><span>Message</span><textarea data-b rows="7" placeholder="Write your message…">' + esc(k.body) + '</textarea></label>' +
+      '<div class="gh-mf2"><div class="gh-merge">Insert: ' + [['first_name', 'First name'], ['last_name', 'Last name'], ['business', 'Business name']].map(x => '<button type="button" data-mg="' + x[0] + '">' + x[1] + '</button>').join('') + '</div><small data-cnt></small></div>' +
+    '</div><div class="gh-kp"><div class="gh-pvh"><span>Preview</span><span class="gh-pvn"><button type="button" class="iconbtn sm" data-pv="-1" aria-label="Previous person">' + ic('chevl', 14) + '</button><small data-pvw>—</small><button type="button" class="iconbtn sm" data-pv="1" aria-label="Next person">' + ic('chev', 14) + '</button></span></div><div data-pvb></div></div></div>' +
+    '<div class="gh-kft" data-ft></div></div>';
+  document.body.appendChild(m);
+  const $ = s => m.querySelector(s);
+  let people = null, pv = 0, dirty = false, busy = false;
+  const close = () => { if (busy) return toast('Sending… pause it first.'); if (dirty && !confirm('Close without saving your changes?')) return; m.remove(); onDone && onDone(true); };
+  m.addEventListener('click', e => { if (e.target === m) close(); });
+  $('[data-x]').addEventListener('click', close);
+  const biz = (S.me.clients.find(x => x.domain === S.domain) || {}).name || 'our team';
+  const fill = (s, x) => String(s || '').replace(/\{\{\s*first_name\s*\}\}/gi, x.f || 'there').replace(/\{\{\s*last_name\s*\}\}/gi, x.l || '').replace(/\{\{\s*name\s*\}\}/gi, x.n || x.f || 'there').replace(/\{\{\s*business\s*\}\}/gi, biz);
+  const reach = x => !x.dnd && (k.channel === 'Email' ? !!x.e : !!x.ph);
+  const inAud = x => !k.tags.length || (k.mode === 'all' ? k.tags.every(t => (x.t || []).map(s => s.toLowerCase()).indexOf(t.toLowerCase()) > -1) : k.tags.some(t => (x.t || []).map(s => s.toLowerCase()).indexOf(t.toLowerCase()) > -1));
+  const aud = () => (people || []).filter(inAud), rec = () => aud().filter(reach);
+  /* Text messages: 160 characters per part (70 with emoji or accents). */
+  const segs = s => { const uni = /[^\x00-\x7F€£¥èéùìòÇØøÅåÆæßÉÄÖÑÜ§¿äöñüà]/.test(s), n = s.length, per = uni ? (n > 70 ? 67 : 70) : (n > 160 ? 153 : 160); return {n, parts: n ? Math.ceil(n / per) : 0, uni}; };
+  const paintAud = () => {
+    const A = $('[data-aud]');
+    if (!people){ A.innerHTML = crmLoading(1); return; }
+    const cnt = {}; people.forEach(x => (x.t || []).forEach(t => { const kk = t.toLowerCase(); cnt[kk] = cnt[kk] || [t, 0]; cnt[kk][1]++; }));
+    const tags = Object.keys(cnt).map(x => cnt[x]).sort((a, b) => b[1] - a[1]);
+    const a = aud(), r = a.filter(reach), skip = a.length - r.length;
+    A.innerHTML = '<div class="gh-tagpick"><button type="button" class="gh-tp' + (k.tags.length ? '' : ' on') + '" data-all>' + ic('users', 12) + 'Everyone <b>' + fmt(people.length) + '</b></button>' + tags.slice(0, 40).map(t => '<button type="button" class="gh-tp' + (k.tags.map(s => s.toLowerCase()).indexOf(t[0].toLowerCase()) > -1 ? ' on' : '') + '" data-tg="' + esc(t[0]) + '">' + esc(t[0]) + ' <b>' + fmt(t[1]) + '</b></button>').join('') + '</div>' +
+      (k.tags.length > 1 ? '<div class="gh-mode">People with <button type="button" data-mode="any"' + (k.mode === 'any' ? ' class="on"' : '') + '>any</button> / <button type="button" data-mode="all"' + (k.mode === 'all' ? ' class="on"' : '') + '>all</button> of these tags</div>' : '') +
+      '<div class="gh-reach"><b>' + fmt(r.length) + '</b> ' + (r.length === 1 ? 'person' : 'people') + ' will get this' + (skip ? '<small>' + fmt(skip) + ' left out: no ' + (k.channel === 'Email' ? 'email address' : 'phone number') + ' or Do Not Disturb is on</small>' : '') + '</div>';
+    A.querySelector('[data-all]').addEventListener('click', () => { k.tags = []; dirty = true; pv = 0; paintAud(); paintPv(); paintFt(); });
+    A.querySelectorAll('[data-tg]').forEach(b => b.addEventListener('click', () => { const t = b.dataset.tg, i = k.tags.map(s => s.toLowerCase()).indexOf(t.toLowerCase()); if (i > -1) k.tags.splice(i, 1); else k.tags.push(t); dirty = true; pv = 0; paintAud(); paintPv(); paintFt(); }));
+    A.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => { k.mode = b.dataset.mode; dirty = true; pv = 0; paintAud(); paintPv(); paintFt(); }));
+  };
+  const paintTpl = () => { $('[data-tpl]').innerHTML = GH_TPL[k.channel].map((t, i) => '<button type="button" data-t="' + i + '">' + esc(t[0]) + '</button>').join('');
+    m.querySelectorAll('[data-tpl] [data-t]').forEach(b => b.addEventListener('click', () => { const t = GH_TPL[k.channel][Number(b.dataset.t)];
+      if (k.body.trim() && !confirm('Replace your message with the “' + t[0] + '” starter?')) return;
+      if (k.channel === 'Email'){ k.subject = t[1]; k.body = t[2]; $('[data-s]').value = k.subject; } else k.body = t[1];
+      $('[data-b]').value = k.body; dirty = true; paintPv(); paintCnt(); })); };
+  const paintCnt = () => { const c = $('[data-cnt]'); if (k.channel === 'Email'){ c.textContent = fmt(k.body.length) + ' characters'; return; } const s = segs(fill(k.body, {f: 'Alexandra', l: 'Thompson'})); c.innerHTML = fmt(s.n) + ' characters · ' + s.parts + ' text' + (s.parts === 1 ? '' : 's') + ' per person' + (s.uni ? ' <span title="Emoji and some accents make each text shorter">(emoji: 70 per text)</span>' : ''); c.classList.toggle('warn', s.parts > 2); };
+  const paintPv = () => {
+    const R = rec(), x = R.length ? R[((pv % R.length) + R.length) % R.length] : {f: 'Alexandra', l: 'Thompson', n: 'Alexandra Thompson', e: 'alexandra@example.com', ph: '+1 204 555 0134'};
+    $('[data-pvw]').textContent = R.length ? (x.n || x.f || 'Contact') + ' · ' + (((pv % R.length) + R.length) % R.length + 1) + ' of ' + fmt(R.length) : 'Example person';
+    const body = fill(k.body, x);
+    $('[data-pvb]').innerHTML = k.channel === 'Email'
+      ? '<div class="gh-pe"><div class="gh-peh"><small>To</small> ' + esc(x.e || '') + '<br><small>Subject</small> <b>' + esc(fill(k.subject, x) || '(no subject)') + '</b></div><div class="gh-peb">' + (body ? esc(body).replace(/\n/g, '<br>') : '<span class="gh-ph">Your email shows here.</span>') + '</div></div>'
+      : '<div class="gh-ps"><div class="gh-psh">' + esc(biz) + '</div><div class="gh-psb">' + (body ? '<div class="gh-bub">' + esc(body).replace(/\n/g, '<br>') + '</div>' : '<span class="gh-ph">Your text shows here.</span>') + '</div><div class="gh-psf">To ' + esc(x.ph || '') + '</div></div>';
+  };
+  const paintFt = () => {
+    const R = rec(), F = $('[data-ft]');
+    F.innerHTML = '<div class="gh-ftl">' + (k.id ? '<button class="btn sm ghost bad" type="button" data-del>' + ic('x', 13) + 'Delete</button>' : '') + (sent ? '<button class="btn sm" type="button" data-dup>' + ic('plus', 13) + 'Duplicate</button>' : '') + '</div>' +
+      (sent ? '<div class="gh-ftm">' + ic('check', 14) + 'Sent to ' + fmt(k.sent) + (k.failed ? ' · ' + fmt(k.failed) + ' failed' : '') + (k.sentAt ? ' · ' + esc(new Date(k.sentAt).toLocaleString('en-CA', {month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'})) : '') + '</div>'
+        : '<button class="btn" type="button" data-save>' + ic('check', 14) + 'Save draft</button>' +
+          '<button class="btn" type="button" data-test' + (canSend ? '' : ' disabled title="Sending needs Full access"') + '>' + ic('eye', 14) + 'Send a test</button>' +
+          '<button class="btn go" type="button" data-send' + (canSend && R.length ? '' : ' disabled') + (canSend ? '' : ' title="Sending needs Full access. You can still save the draft."') + '>' + ic('send', 14) + (k.status === 'sending' ? 'Resume sending' : 'Send to ' + fmt(R.length) + ' ' + (R.length === 1 ? 'person' : 'people')) + '</button>');
+    const q = s => F.querySelector(s);
+    if (q('[data-save]')) q('[data-save]').addEventListener('click', () => save(true));
+    if (q('[data-del]')) q('[data-del]').addEventListener('click', async () => { if (!confirm('Delete “' + (k.name || 'this campaign') + '”?' + (sent ? '' : ' The draft can’t be brought back.'))) return; try{ await ghl('camp.delete', {id: k.id}); dirty = false; toast('Campaign deleted'); m.remove(); onDone && onDone(); }catch(e){ toast(e.message); } });
+    if (q('[data-dup]')) q('[data-dup]').addEventListener('click', () => { m.remove(); ghlCampEdit({name: k.name + ' (copy)', channel: k.channel, subject: k.subject, body: k.body, tags: k.tags.slice(), mode: k.mode}, onDone); });
+    if (q('[data-test]')) q('[data-test]').addEventListener('click', testSend);
+    if (q('[data-send]')) q('[data-send]').addEventListener('click', sendAll);
+  };
+  const lock = () => { if (!sent && ghCan(2)) return; m.querySelectorAll('.gh-kf input,.gh-kf textarea,.gh-kf button').forEach(x => { x.disabled = true; }); };
+  const save = async loud => {
+    if (!ghCan(2)) { toast('Drafting campaigns needs Sales access.'); return false; }
+    k.name = $('[data-n]').value.trim() || (k.channel === 'Email' ? (k.subject || 'Email campaign') : 'Text campaign') ;
+    try{ const j = await ghl('camp.save', {id: k.id, name: k.name, channel: k.channel, subject: k.subject, body: k.body, tags: k.tags, mode: k.mode}); Object.assign(k, j.camp); dirty = false; m.querySelector('.gh-mh h2').textContent = k.name; if (loud) toast('Draft saved'); paintFt(); return true; }
+    catch(e){ toast(e.message); return false; }
+  };
+  const check = () => { if (!k.body.trim()) { toast('Write the message first.'); $('[data-b]').focus(); return false; } if (k.channel === 'Email' && !k.subject.trim()) { toast('Add a subject line.'); $('[data-s]').focus(); return false; } return true; };
+  /* A test: one copy to a contact you pick (yourself, ideally: add yourself as a contact in Easyleads). */
+  const testSend = () => {
+    if (!check()) return;
+    const F = $('[data-ft]'), em = k.channel === 'Email';
+    F.innerHTML = '<div class="gh-tst"><label class="search">' + ic('search', 15) + '<input data-tq placeholder="Send one test ' + (em ? 'email' : 'text') + ' to… (type a name, ' + (em ? 'email' : 'phone') + ')"></label><div class="gh-tsl" data-tl></div></div><button class="btn" type="button" data-tc>Cancel</button>';
+    const inp = F.querySelector('[data-tq]'), TL = F.querySelector('[data-tl]');
+    const pool = (people || []).filter(x => !x.dnd && (em ? x.e : x.ph));
+    const show = () => { const w = inp.value.trim().toLowerCase(), hit = pool.filter(x => !w || ((x.n || '') + ' ' + (x.e || '') + ' ' + (x.ph || '')).toLowerCase().indexOf(w) > -1).slice(0, 5);
+      TL.innerHTML = hit.length ? hit.map((x, i) => '<button type="button" data-i="' + i + '"><b>' + esc(x.n) + '</b><small>' + esc(em ? x.e : x.ph) + '</small></button>').join('') : '<small class="gh-ph">No reachable contact matches.</small>';
+      TL.querySelectorAll('[data-i]').forEach(b => b.addEventListener('click', async () => { const x = hit[Number(b.dataset.i)];
+        b.disabled = true; b.innerHTML = '<span class="spin"></span>Sending…';
+        if (dirty || !k.id){ if (!(await save())) return paintFt(); }
+        try{ const j = await ghl('camp.send', {id: k.id, to: [{id: x.id, f: x.f, l: x.l, n: x.n}], test: true}); toast(j.fails && j.fails.length ? 'Test didn’t go: ' + j.fails[0].err : 'Test sent to ' + x.n); }catch(e){ toast(e.message); }
+        paintFt(); })); };
+    inp.addEventListener('input', show); F.querySelector('[data-tc]').addEventListener('click', paintFt);
+    show(); inp.focus();
+  };
+  /* Send to everyone, 20 at a time, with a progress bar and a pause button. */
+  const sendAll = async () => {
+    if (!check()) return;
+    const R = rec(); if (!R.length) return;
+    if (!confirm('Send “' + (k.name || 'this campaign') + '” as ' + (k.channel === 'Email' ? 'an email' : 'a text') + ' to ' + fmt(R.length) + ' ' + (R.length === 1 ? 'person' : 'people') + ' now?\n\nMessages go out from Easyleads right away and can’t be unsent.')) return;
+    if (dirty || !k.id){ if (!(await save())) return; }
+    busy = true; let stop = false, done = 0, failed = [], skipped = 0;
+    m.querySelectorAll('.gh-kf input,.gh-kf textarea,.gh-kf button').forEach(x => { x.disabled = true; });
+    const F = $('[data-ft]');
+    F.innerHTML = '<div class="gh-prog"><div class="gh-pb"><span data-pb></span></div><small data-pt>Starting…</small></div><button class="btn" type="button" data-stop>Pause</button>';
+    F.querySelector('[data-stop]').addEventListener('click', e => { stop = true; e.currentTarget.disabled = true; e.currentTarget.textContent = 'Pausing…'; });
+    const bar = F.querySelector('[data-pb]'), txt = F.querySelector('[data-pt]');
+    for (let i = 0; i < R.length && !stop; i += 20){
+      const part = R.slice(i, i + 20).map(x => ({id: x.id, f: x.f, l: x.l, n: x.n}));
+      try{ const j = await ghl('camp.send', {id: k.id, to: part, last: i + 20 >= R.length}); done += j.sent; skipped += j.skipped || 0; failed = failed.concat(j.fails || []); Object.assign(k, j.camp); }
+      catch(e){ toast(e.message); stop = true; }
+      const n = Math.min(R.length, i + 20); bar.style.width = Math.round(n / R.length * 100) + '%'; txt.textContent = fmt(done + skipped) + ' of ' + fmt(R.length) + ' sent' + (failed.length ? ' · ' + fmt(failed.length) + ' failed' : '');
+      if (i + 20 < R.length && !stop) await new Promise(r => setTimeout(r, 1200));
+    }
+    busy = false;
+    toast(stop ? 'Paused after ' + fmt(done + skipped) + ' of ' + fmt(R.length) + '. Open it to resume.' : 'Campaign sent to ' + fmt(done + skipped) + ' ' + (done + skipped === 1 ? 'person' : 'people') + (failed.length ? ' · ' + fmt(failed.length) + ' failed' : ''));
+    if (failed.length) txt.innerHTML = esc(txt.textContent) + '<br><span class="gh-fails">Didn’t go: ' + failed.slice(0, 5).map(f => esc(f.n || f.id) + ' (' + esc(f.err) + ')').join(', ') + (failed.length > 5 ? '…' : '') + '</span>';
+    F.insertAdjacentHTML('beforeend', '<button class="btn go" type="button" data-fin>Done</button>');
+    F.querySelector('[data-stop]').remove();
+    F.querySelector('[data-fin]').addEventListener('click', () => { m.remove(); onDone && onDone(); });
+  };
+  /* wiring */
+  m.querySelectorAll('[data-ch] [data-v]').forEach(b => b.addEventListener('click', () => { if (sent) return; k.channel = b.dataset.v; dirty = true; pv = 0; m.querySelectorAll('[data-ch] [data-v]').forEach(x => x.classList.toggle('on', x === b)); $('[data-subjw]').hidden = k.channel !== 'Email'; paintTpl(); paintAud(); paintPv(); paintCnt(); paintFt(); }));
+  $('[data-n]').addEventListener('input', () => { dirty = true; });
+  $('[data-s]').addEventListener('input', e => { k.subject = e.target.value; dirty = true; paintPv(); });
+  $('[data-b]').addEventListener('input', e => { k.body = e.target.value; dirty = true; paintPv(); paintCnt(); });
+  m.querySelectorAll('[data-mg]').forEach(b => b.addEventListener('click', () => { const ta = $('[data-b]'), tok = '{{' + b.dataset.mg + '}}', s0 = ta.selectionStart || ta.value.length, s1 = ta.selectionEnd || s0;
+    ta.value = ta.value.slice(0, s0) + tok + ta.value.slice(s1); ta.focus(); ta.selectionStart = ta.selectionEnd = s0 + tok.length; k.body = ta.value; dirty = true; paintPv(); paintCnt(); }));
+  m.querySelectorAll('[data-pv]').forEach(b => b.addEventListener('click', () => { pv += Number(b.dataset.pv); paintPv(); }));
+  $('[data-subjw]').hidden = k.channel !== 'Email';
+  paintTpl(); paintAud(); paintPv(); paintCnt(); paintFt(); lock();
+  ghl('camp.people').then(j => { people = j.people || []; if (!m.isConnected) return; paintAud(); paintPv(); paintFt(); lock(); if (j.capped) toast('Showing the first 2,000 contacts.'); }, e => { $('[data-aud]').innerHTML = ghlErr(e); });
+  setTimeout(() => { if (!k0) $('[data-n]').focus(); }, 30);
+}
+
 (function(){ if (document.getElementById('gh-css')) return; const st = document.createElement('style'); st.id = 'gh-css';
   st.textContent =
     '.gh-live{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;color:#0b5fd0;background:linear-gradient(135deg,#eaf3ff,#dcebff);border:1px solid #cfe2ff;border-radius:99px;padding:3px 10px 3px 8px;white-space:nowrap}.gh-live svg{color:#1d7cf2}' +
@@ -2945,10 +3312,50 @@ function ghlNewDealFor(pl, c){
     '.gh-modal{width:min(560px,100%)}.gh-mh{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px}.gh-mh h2{margin:0 0 6px}' +
     '.gh-pick{display:flex;flex-direction:column;gap:4px;max-height:220px;overflow:auto;margin:8px 0 14px}.gh-pick button{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid transparent;border-radius:12px;background:#fafbfc;font:inherit;text-align:left;cursor:pointer}.gh-pick button span:last-child{line-height:1.3}.gh-pick b{display:block;font-size:13.5px}.gh-pick small{display:block;font-size:11.5px;color:var(--ink-3)}.gh-pick button:hover{background:#f1f6ff}.gh-pick button.on{border-color:#1d7cf2;background:#eaf3ff}' +
     '.gh-steps{grid-template-columns:repeat(auto-fit,minmax(110px,1fr))!important}' +
-    '.eb-wr{margin-left:8px}.eb-wr.on{background:linear-gradient(135deg,#2b88f5,#1d7cf2);border-color:#1d7cf2;color:#fff}';
+    '.eb-wr{margin-left:8px;gap:6px}.eb-wr.on{background:linear-gradient(135deg,#2b88f5,#1d7cf2);border-color:#1d7cf2;color:#fff}.eb-wr select{border:0;background:transparent;font:inherit;font-weight:700;color:inherit;cursor:pointer;outline:none;padding-right:2px}.eb-wr.on select option{color:#111}' +
+    '.gh-ro{background:#f6f7f9;border-radius:10px;padding:8px 10px;margin:0 0 10px}.gh-acts button:disabled{opacity:.45;cursor:not-allowed;background:#fafbfc}.gh-acts button:disabled svg{color:var(--ink-3)}.cr-steps button:disabled{cursor:not-allowed;opacity:.6}' +
+    '.gh-kpis{margin-bottom:16px}.gh-stages{display:flex;flex-direction:column;gap:9px}.gh-stg{display:grid;grid-template-columns:minmax(120px,190px) 1fr 44px 92px;align-items:center;gap:12px;font-size:13px}.gh-sn{display:flex;align-items:center;gap:8px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.gh-sn i{width:8px;height:8px;border-radius:50%;background:var(--c);flex:none}.gh-bar{height:10px;border-radius:99px;background:#f1f4f9;overflow:hidden}.gh-bar span{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--c),color-mix(in srgb,var(--c) 70%,#fff));transition:width .6s cubic-bezier(.2,.8,.2,1)}.gh-stg b{text-align:right;font:700 14px var(--display)}.gh-stg em{font-style:normal;text-align:right;color:var(--ink-3);font-size:12.5px}' +
+    '.gh-tl,.gh-al{display:flex;flex-direction:column;gap:4px;overflow:auto;max-height:calc(100% - 52px)}.gh-tg{margin-bottom:8px}.gh-th{display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--c);margin:4px 2px 6px}.gh-th b{margin-left:auto;color:var(--ink-3);font-weight:600}' +
+    '.gh-tr{display:flex;align-items:center;gap:11px;padding:9px 11px;border:1px solid #eef0f3;border-radius:12px;background:#fff;margin-bottom:5px;transition:opacity .35s,transform .35s}.gh-tr.going{opacity:0;transform:translateX(14px)}.gh-tx{flex:1;min-width:0;line-height:1.35}.gh-tx b{display:block;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.gh-tx small{font-size:12px;color:var(--ink-3)}.gh-tx .late{color:#e0413a;font-weight:600}' +
+    '.gh-ck{position:relative;width:20px;height:20px;flex:none;cursor:pointer}.gh-ck input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}.gh-ck i{position:absolute;inset:0;border:2px solid #cbd3df;border-radius:7px;transition:all .15s}.gh-ck:hover i{border-color:#0f9d6b}.gh-ck input:checked+i{background:#0f9d6b;border-color:#0f9d6b}.gh-ck input:checked+i:after{content:"";position:absolute;left:5px;top:1px;width:5px;height:10px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}.gh-ck input:disabled+i{opacity:.4}' +
+    '.gh-lk{border:0;background:none;padding:0;font:inherit;color:#0b5fd0;font-weight:600;cursor:pointer}.gh-lk:hover{text-decoration:underline}' +
+    '.gh-done{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;text-align:center;padding:30px 12px;color:var(--ink-3)}.gh-done svg{color:#0f9d6b;margin-bottom:4px}.gh-done b{color:var(--ink);font-size:14px}.gh-done small{font-size:12.5px;max-width:340px}.gh-wide{grid-column:1/-1}' +
+    '.gh-ad{font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3);margin:8px 2px 2px}' +
+    '.gh-ap{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid #eef0f3;border-radius:14px;background:#fff;margin-bottom:5px}.gh-ap.dead{opacity:.55}.gh-ap.dead .gh-ai b{text-decoration:line-through}.gh-at{width:66px;flex:none;line-height:1.2}.gh-at b{display:block;font:700 15px var(--display)}.gh-at small{font-size:11px;color:var(--ink-3)}.gh-ai{flex:1;min-width:0;line-height:1.35}.gh-ai b{display:block;font-size:13.5px;cursor:pointer}.gh-ai b:hover{color:#0b5fd0}.gh-ai small{display:block;font-size:12px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.gh-ai .cr-st{margin-top:4px}.gh-aa{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;max-width:52%}.cr-ib.bad{color:#c2342e}' +
+    '.gh-sub{margin:-2px 0 12px;color:var(--ink-3);font-size:13px}' +
+    '.gh-cv{display:grid;grid-template-columns:minmax(260px,36%) 1fr;gap:12px;height:calc(100% - 52px);min-height:420px}.gh-cl{overflow:auto;display:flex;flex-direction:column;gap:4px;padding-right:2px}' +
+    '.gh-ci{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;padding:10px;border:1px solid transparent;border-radius:13px;background:#fafbfc;font:inherit;cursor:pointer;transition:background .15s,border-color .15s}.gh-ci:hover{background:#f3f7fd}.gh-ci.on{background:#eaf3ff;border-color:#cfe2ff}.gh-cm{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.gh-cn{display:flex;justify-content:space-between;gap:8px}.gh-cn b{font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.gh-cn small{font-size:11px;color:var(--ink-3);white-space:nowrap}.gh-ci.unread .gh-cn b:after{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:#1d7cf2;margin-left:6px;vertical-align:middle}' +
+    '.gh-cs{display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.gh-cs svg{flex:none;color:var(--ink-3)}.gh-cs em{font-style:normal;color:var(--ink-3)}.gh-wait{align-self:flex-start;font-size:10.5px;font-weight:700;color:#b45309;background:#fff4e0;border-radius:99px;padding:2px 8px;margin-top:3px}.gh-n{display:inline-grid;place-items:center;min-width:17px;height:17px;padding:0 5px;border-radius:99px;background:#f59e0b;color:#fff;font-size:10.5px;margin-left:4px}' +
+    '.gh-th2{display:flex;flex-direction:column;border:1px solid #eef0f3;border-radius:16px;background:#fff;min-height:0;overflow:hidden}.gh-tt{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid #f0f2f5}.gh-tt>div{flex:1;min-width:0;line-height:1.3}.gh-tt b{display:block;font-size:14px}.gh-tt small{font-size:12px;color:var(--ink-3)}' +
+    '.gh-ms{flex:1;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:8px;background:linear-gradient(180deg,#fbfcfe,#fff)}.gh-m{max-width:78%;display:flex;flex-direction:column;gap:3px}.gh-m.in{align-self:flex-start}.gh-m.out{align-self:flex-end;align-items:flex-end}.gh-mb{padding:9px 12px;border-radius:16px;font-size:13.5px;line-height:1.45;white-space:pre-wrap;word-wrap:break-word}.gh-m.in .gh-mb{background:#f1f4f9;border-bottom-left-radius:5px}.gh-m.out .gh-mb{background:linear-gradient(135deg,#2b88f5,#1d7cf2);color:#fff;border-bottom-right-radius:5px}.gh-m small{display:flex;align-items:center;gap:4px;font-size:10.5px;color:var(--ink-3)}' +
+    '.gh-rp{padding:10px 12px;border-top:1px solid #f0f2f5}.gh-rp .cr-comp{margin:0}.gh-th2>.gh-ro{margin:10px 12px}' +
+    '.gh-cg{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}.gh-kc{display:flex;flex-direction:column;gap:6px;text-align:left;padding:14px;border:1px solid #eef0f3;border-radius:16px;background:#fff;font:inherit;cursor:pointer;transition:border-color .15s,box-shadow .15s,transform .15s}.gh-kc:hover{border-color:#f5c6dd;box-shadow:0 12px 26px -18px rgba(219,39,119,.55);transform:translateY(-1px)}.gh-kc b{font-size:14.5px}.gh-kc p{margin:0;font-size:12.5px;color:var(--ink-2);line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.gh-kc small{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ink-3)}.gh-kh{display:flex;justify-content:space-between;align-items:center}.gh-kch{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:#0b5fd0;background:#eaf3ff;border-radius:99px;padding:3px 9px}.gh-kch.em{color:#be185d;background:#fdeaf3}.gh-kby{margin-top:auto}' +
+    '.gh-kb{align-items:flex-start;padding-top:4vh}.gh-km{width:min(1060px,100%);max-height:92vh;display:flex;flex-direction:column}.gh-kw{display:grid;grid-template-columns:1.25fr 1fr;gap:20px;overflow:auto;min-height:0;padding:2px}.gh-kf{display:flex;flex-direction:column;gap:14px}.gh-fl{display:flex;flex-direction:column;gap:6px}.gh-fl>span{font-size:12px;font-weight:700;color:var(--ink-2)}.gh-fl input,.gh-fl textarea{border:1px solid var(--line);border-radius:12px;padding:10px 12px;font:inherit;font-size:14px;resize:vertical;outline:none;transition:border-color .15s,box-shadow .15s}.gh-fl input:focus,.gh-fl textarea:focus{border-color:#1d7cf2;box-shadow:0 0 0 4px rgba(29,124,242,.12)}.gh-fl textarea{min-height:150px;line-height:1.5}' +
+    '.gh-ch{align-self:flex-start}.gh-ch button{display:inline-flex;align-items:center;gap:6px}' +
+    '.gh-tagpick{display:flex;flex-wrap:wrap;gap:6px}.gh-tp{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:#fff;border-radius:99px;padding:5px 11px;font:600 12.5px var(--ui);color:var(--ink-2);cursor:pointer;transition:all .15s}.gh-tp b{font-weight:600;color:var(--ink-3);font-size:11.5px}.gh-tp:hover{border-color:#bcd6ff}.gh-tp.on{background:#1d7cf2;border-color:#1d7cf2;color:#fff}.gh-tp.on b{color:rgba(255,255,255,.8)}' +
+    '.gh-mode{font-size:12.5px;color:var(--ink-3);margin-top:8px}.gh-mode button{border:0;background:#f1f4f9;border-radius:7px;padding:2px 8px;font:600 12px var(--ui);cursor:pointer;color:var(--ink-2)}.gh-mode button.on{background:#1d7cf2;color:#fff}' +
+    '.gh-reach{margin-top:10px;padding:10px 12px;border-radius:12px;background:linear-gradient(135deg,#f0f7ff,#f8fbff);border:1px solid #dcebff;font-size:13px}.gh-reach b{font:700 18px var(--display);color:#0b5fd0;margin-right:2px}.gh-reach small{display:block;color:var(--ink-3);font-size:11.5px;margin-top:2px}' +
+    '.gh-tpl{display:flex;gap:6px;flex-wrap:wrap}.gh-tpl button{border:1px dashed #cfd6e2;background:#fafbfc;border-radius:10px;padding:6px 11px;font:600 12.5px var(--ui);color:var(--ink-2);cursor:pointer}.gh-tpl button:hover{border-color:#1d7cf2;color:#0b5fd0;background:#f3f8ff}' +
+    '.gh-mf2{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:-6px}.gh-merge{font-size:12px;color:var(--ink-3);display:flex;gap:5px;align-items:center;flex-wrap:wrap}.gh-merge button{border:1px solid #e3e8f0;background:#fff;border-radius:8px;padding:3px 8px;font:600 11.5px var(--ui);color:#0b5fd0;cursor:pointer}.gh-merge button:hover{background:#eaf3ff}.gh-mf2 small{font-size:11.5px;color:var(--ink-3)}.gh-mf2 small.warn{color:#b45309}' +
+    '.gh-kp{position:sticky;top:0;align-self:start;background:linear-gradient(180deg,#f5f8fc,#eef3f9);border-radius:18px;padding:14px}.gh-pvh{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:12px;font-weight:700;color:var(--ink-2)}.gh-pvn{display:flex;align-items:center;gap:4px}.gh-pvn small{font-weight:500;color:var(--ink-3);max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.gh-pvn .iconbtn{width:26px;height:26px}' +
+    '.gh-ps{width:min(300px,100%);margin:0 auto;background:#fff;border-radius:30px;padding:12px;box-shadow:0 20px 40px -24px rgba(15,23,42,.45),inset 0 0 0 7px #0f172a}.gh-psh{text-align:center;font-size:12px;font-weight:700;padding:14px 0 10px;border-bottom:1px solid #f0f2f5;margin:0 6px}.gh-psb{min-height:250px;padding:14px 10px;display:flex;flex-direction:column}.gh-bub{align-self:flex-start;max-width:88%;background:#e9e9eb;color:#111;padding:9px 12px;border-radius:18px;border-bottom-left-radius:5px;font-size:13.5px;line-height:1.4;word-wrap:break-word}.gh-psf{text-align:center;font-size:10.5px;color:var(--ink-3);padding:4px 0 10px}' +
+    '.gh-pe{background:#fff;border-radius:14px;box-shadow:0 14px 30px -22px rgba(15,23,42,.5);overflow:hidden}.gh-peh{padding:12px 14px;border-bottom:1px solid #f0f2f5;font-size:12.5px;line-height:1.7}.gh-peh small{display:inline-block;width:56px;color:var(--ink-3)}.gh-peb{padding:16px 14px;font-size:13.5px;line-height:1.6;min-height:240px;word-wrap:break-word}.gh-ph{color:var(--ink-3);font-style:italic}' +
+    '.gh-kft{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding-top:14px;margin-top:14px;border-top:1px solid #f0f2f5;flex-wrap:wrap}.gh-ftl{margin-right:auto;display:flex;gap:6px}.gh-ftm{display:flex;align-items:center;gap:6px;color:#0f7a58;font-weight:600;font-size:13px}.btn.bad{color:#c2342e}' +
+    '.gh-prog{flex:1;min-width:220px}.gh-pb{height:10px;border-radius:99px;background:#eef2f8;overflow:hidden}.gh-pb span{display:block;height:100%;width:0;background:linear-gradient(90deg,#1d7cf2,#7c3aed);border-radius:99px;transition:width .4s}.gh-prog small{display:block;margin-top:6px;font-size:12px;color:var(--ink-2)}.gh-fails{color:#c2342e}' +
+    '.gh-tst{flex:1;min-width:260px;position:relative}.gh-tsl{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.gh-tsl button{display:flex;flex-direction:column;align-items:flex-start;border:1px solid var(--line);background:#fff;border-radius:10px;padding:6px 10px;font:inherit;cursor:pointer;line-height:1.3}.gh-tsl button:hover{border-color:#1d7cf2;background:#f3f8ff}.gh-tsl b{font-size:12.5px}.gh-tsl small{font-size:11px;color:var(--ink-3)}' +
+    '.gh-fl[hidden]{display:none!important}.gh-aa .cr-ib,.gh-tt .cr-ib{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}.gh-at{width:80px;white-space:nowrap}.gh-at b{font-size:14.5px}.gh-th2>.gh-done{flex:1}.gh-tok{font-style:normal;font-size:11px;font-weight:700;color:#0b5fd0;background:#eaf3ff;border-radius:6px;padding:1px 5px}' +
+    '@media(max-width:860px){.gh-kw{grid-template-columns:1fr}.gh-kp{position:static}.gh-cv{grid-template-columns:1fr}.gh-stg{grid-template-columns:110px 1fr 34px 76px;gap:8px}}';
   document.head.appendChild(st); })();
 
-const deskDash = () => ({id: uid(), name: 'Sales desk', items: [item('note', 12, {title: 'Your sales desk', about: 'ghl_deals', text: 'Move deals, update contacts, add tasks and notes, book appointments and send messages. Everything you do here happens in Easyleads right away, and Ctrl+Z undoes it.'}), item('ghl_deals', 12), item('ghl_contacts', 12)]});
+const deskDash = () => ({id: uid(), name: 'Sales desk', items: [item('note', 12, {title: 'Your sales desk', about: 'ghl_deals', text: 'Move deals, update contacts, add tasks and notes, book appointments and send messages. Everything you do here happens in Easyleads right away, and Ctrl+Z undoes it.'}),
+  item('ghl_pipe', 12), item('ghl_tasks', 6, {h: 460}), item('ghl_appts', 6, {h: 460}), item('ghl_deals', 12), item('ghl_convs', 12, {h: 600}), item('ghl_contacts', 12), item('ghl_camp', 12)]});
+function deskUpgrade(dd){
+  const has = t => dd.items.some(i => i.t === t), at = t => dd.items.findIndex(i => i.t === t);
+  if (!has('ghl_pipe')){ const n = dd.items.findIndex(i => i.t === 'note'); dd.items.splice(n < 0 ? 0 : n + 1, 0, item('ghl_pipe', 12)); }
+  if (!has('ghl_tasks')) dd.items.splice(at('ghl_pipe') + 1, 0, item('ghl_tasks', 6, {h: 460}), item('ghl_appts', 6, {h: 460}));
+  if (!has('ghl_convs')){ const d = at('ghl_deals'); dd.items.splice(d < 0 ? dd.items.length : d + 1, 0, item('ghl_convs', 12, {h: 600})); }
+  if (!has('ghl_camp')) dd.items.push(item('ghl_camp', 12));
+}
 (async function boot(){
   /* "Open as client" from the EDGE tool passes a short session in the address. */
   const hash = new URLSearchParams(location.hash.slice(1));
