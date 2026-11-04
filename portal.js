@@ -256,6 +256,8 @@ const W = {
   crm_board: {g: 'Clients', t: 'Client pipeline', d: 'Every person who reached out, as a card: drag them from New lead to Contacted, Quote sent, Booked, Won or Lost. Your whole team sees it live.', ic: 'grid', tint: '#4f46e5', c: 12, sk: 'table', needs: ['forms'], draw: drawCrmBoard},
   crm_follow: {g: 'Clients', t: 'Follow-ups', d: 'Who to call back today, what is late, and new leads still waiting for a first reply.', ic: 'clock', tint: '#d9820b', c: 12, sk: 'list', needs: ['forms'], draw: drawCrmFollow},
   crm_clients: {g: 'Clients', t: 'Client list', d: 'One row per person across every form they sent: stage, job value, owner, first and latest request. Export to CSV.', ic: 'users', tint: '#0891b2', c: 12, sk: 'table', needs: ['forms'], draw: drawCrmClients},
+  ghl_deals: {g: 'Sales desk', t: 'Deals pipeline', d: 'Your Easyleads pipeline: drag a deal to another stage, mark it won or lost, change its value or create a new one. Every change is made in Easyleads right away.', ic: 'funnel', tint: '#1d7cf2', c: 12, sk: 'table', needs: [], wr: true, draw: drawGhlDeals},
+  ghl_contacts: {g: 'Sales desk', t: 'Contacts desk', d: 'Search any contact, then edit details, tags and notes, add tasks, book or move appointments and send a text or email, right in Easyleads.', ic: 'users', tint: '#0b5fd0', c: 12, sk: 'list', needs: [], wr: true, draw: drawGhlContacts},
   note: {g: 'Text', t: 'Heading & summary', d: 'A heading and a short write-up. Attach it to a widget and it explains that widget’s numbers in plain words.', ic: 'spark', tint: '#475569', c: 12, sk: 'note', needs: [], draw: drawNote}
 };
 /* Where this business's data comes from: its Easyleads account, or the EDGE tracker (website forms, phone taps). */
@@ -265,7 +267,7 @@ const gaOn = () => !!((S.me && S.me.clients.find(c => c.domain === S.domain)) ||
 const gscOn = () => !!((S.me && S.me.clients.find(c => c.domain === S.domain)) || {}).gsc;
 const aiOn = () => !!((S.me && S.me.clients.find(c => c.domain === S.domain)) || {}).ai;
 const kOn = k => k === 'ga' ? gaOn() : k === 'gsc' ? gscOn() : k === 'ai' ? aiOn() : null;
-const okFor = t => { const w = W[t]; if (!w) return false; if (w.only && w.only.indexOf(S.domain) < 0) return false; if (w.ga) return gaOn(); if (w.gsc) return gscOn(); if (w.ai) return aiOn(); if (t === 'note' || srcOf() === 'easyleads') return true; if (w.el) return false; return w.soft ? w.needs.some(k => SITE_K[k]) : w.needs.every(k => SITE_K[k]); };
+const okFor = t => { const w = W[t]; if (!w) return false; if (w.only && w.only.indexOf(S.domain) < 0) return false; if (w.wr) return canGhl(); if (w.ga) return gaOn(); if (w.gsc) return gscOn(); if (w.ai) return aiOn(); if (t === 'note' || srcOf() === 'easyleads') return true; if (w.el) return false; return w.soft ? w.needs.some(k => SITE_K[k]) : w.needs.every(k => SITE_K[k]); };
 const needsOf = it => it.t === 'note' ? (it.about && W[it.about] && it.about !== 'note' ? W[it.about].needs : []) : W[it.t].needs;
 /* Anything a business can't have yet is left out of its report entirely (it stays in the layout, so it shows up by itself once available). */
 const visIt = it => it.t === 'note' ? (!it.about || okFor(it.about)) : okFor(it.t);
@@ -1278,6 +1280,8 @@ function layout(){
     const first = L.dashes[0], at = first.items.findIndex(i => i.t === 'kpis');
     first.items.splice(at < 0 ? 0 : at + 1, 0, item(t));
   });
+  /* Logins allowed to change things in Easyleads get a Sales desk tab, once. */
+  if (!A.desk && S.me && S.me.write && !S.me.edge){ A.desk = 1; S.layout.dashes.splice(Math.min(1, S.layout.dashes.length), 0, deskDash()); if (canEdit()) setTimeout(() => saveLayout(true), 0); }
   if (LSNAP_OBJ !== S.layout){ LSNAP_OBJ = S.layout; LSNAP = JSON.stringify(S.layout); }
   return S.layout;
 }
@@ -1322,10 +1326,10 @@ function renderApp(){
     '<main class="wrap' + (S.editing ? ' editing' : '') + '">' +
     '<div class="seg mob-period" data-period>' + PERIODS.map(p => '<button type="button" data-p="' + p[0] + '"' + (p[0] === S.period ? ' class="on"' : '') + '>' + p[1] + '</button>').join('') + '</div>' +
     (me.edge ? '<div class="edgebar">' + ic('edit', 15) + '<div class="eb-t"><b>You’re arranging this dashboard as EDGE.</b> Whatever you set here is exactly what ' + esc(me.user.name || me.user.email) + ' sees.</div>' +
-      '<button class="btn eb-std" type="button" data-std title="Every new login, and any login without a dashboard of its own, starts with these dashboards and tabs">' + ic('grid', 14) + 'Make this the standard for new logins</button></div>' : '') +
+      '<button class="btn eb-std" type="button" data-std title="Every new login, and any login without a dashboard of its own, starts with these dashboards and tabs">' + ic('grid', 14) + 'Make this the standard for new logins</button>' + (srcOf() === 'easyleads' ? '<button class="btn eb-wr' + (me.write ? ' on' : '') + '" type="button" data-wr title="Let this login change deals, contacts, tasks, appointments and messages in Easyleads from the dashboard">' + ic('bolt', 14) + 'Changes in Easyleads: ' + (me.write ? 'On' : 'Off') + '</button>' : '') + '</div>' : '') +
     (VD.length > 1 || canEdit() ? '<div class="tabs" role="tablist">' + VD.map(d => { const hid = !visDash(d); return '<button class="tab' + (d === dash ? ' on' : '') + '" type="button" role="tab" data-dash="' + L.dashes.indexOf(d) + '"' + (hid ? ' style="opacity:.5" title="Hidden from this business until something on it is available"' : '') + '>' + esc(d.name) + (hid ? ' · hidden' : '') + '</button>'; }).join('') +
       (canEdit() ? '<button class="tab add" type="button" data-newdash>' + ic('plus', 14) + ' New dashboard</button>' : '') + '</div>' : '') +
-    '<div class="bar"><div><h2>' + esc(dash.name) + '</h2><div class="sub">' + ic('cal', 13) + esc(rangeText()) + ' <span style="opacity:.5">·</span> <span class="ro">' + ic('lock', 12) + (srcOf() === 'site' ? 'Read-only view of your website leads' : 'Read-only view of your ' + esc(BRAND) + ' account') + '</span></div></div><div class="grow"></div>' +
+    '<div class="bar"><div><h2>' + esc(dash.name) + '</h2><div class="sub">' + ic('cal', 13) + esc(rangeText()) + ' <span style="opacity:.5">·</span> <span class="ro">' + (canGhl() && dash.items.some(i => W[i.t] && W[i.t].wr) ? ic('bolt', 12) + 'Changes on this dashboard go live in ' + esc(BRAND) + '</span>' : ic('lock', 12) + (srcOf() === 'site' ? 'Read-only view of your website leads' : 'Read-only view of your ' + esc(BRAND) + ' account') + '</span>') + '</div></div><div class="grow"></div>' +
       (S.editing ? '<button class="btn" type="button" data-addw>' + ic('plus', 15) + 'Add widget</button><button class="btn" type="button" data-addnote>' + ic('spark', 15) + 'Add heading</button><button class="btn" type="button" data-rename>' + ic('edit', 15) + 'Rename</button>' +
         (L.dashes.length > 1 ? '<button class="btn" type="button" data-deldash>Delete dashboard</button>' : '') : '') +
       (canEdit() ? '<button class="btn' + (S.editing ? ' go' : '') + '" type="button" data-edit>' + (S.editing ? ic('check', 15) + 'Done' : ic('grid', 15) + 'Customize') + '</button>' : '') + '</div>' +
@@ -1347,6 +1351,13 @@ function wireTop(){
     const name = prompt('Name the new dashboard:', 'My dashboard'); if (!name || !name.trim()) return;
     layout().dashes.push({id: uid(), name: name.trim().slice(0, 40), items: [item('kpis')]});
     S.dash = layout().dashes.length - 1; S.editing = true; saveLayout(); renderApp();
+  });
+  const wr = q('[data-wr]'); if (wr) wr.addEventListener('click', async () => {
+    const on = !S.me.write; wr.disabled = true;
+    try{ const j = await api('portalSetWrite', {session: S.session, on}); if (j.error) throw new Error(j.error); S.me.write = on;
+      const L2 = layout(); if (on && !L2.dashes.some(d => d.items.some(i => W[i.t] && W[i.t].wr))){ L2.dashes.splice(Math.min(1, L2.dashes.length), 0, deskDash()); (L2.auto = L2.auto || {}).desk = 1; saveLayout(true); }
+      toast(on ? 'Changes in Easyleads are on for this login' : 'Changes in Easyleads are off for this login'); renderApp(); }
+    catch(e){ toast(e.message); wr.disabled = false; }
   });
   const sd = q('[data-std]'); if (sd) sd.addEventListener('click', async () => {
     if (!confirm('Make these dashboards and tabs the standard for every new login?\n\nLogins that already have their own dashboard keep it.')) return;
@@ -2670,6 +2681,272 @@ async function markSetQuiet(r, s, M, onDone){
   crmMarksOut(M); teamFetch();
 }
 
+/* ---------- Sales desk: change things in Easyleads (GoHighLevel) straight from the dashboard ----------
+   Only for Easyleads businesses, and only for logins EDGE switched on (or EDGE itself). Every change
+   is applied in Easyleads at once, logged on the tracker, and can be undone with Ctrl+Z. */
+const canGhl = () => !!(S.me && (S.me.write || S.me.edge)) && srcOf() === 'easyleads';
+async function ghl(op, p, o){
+  const j = await api('portalGhl', {session: S.session, domain: S.domain, op, p: p || {}, undo: !!(o && o.undo)});
+  if (!j || j.error){ const e = new Error((j && j.error) || 'Easyleads didn’t answer.'); e.code = j && j.code; throw e; }
+  return j;
+}
+/* A change: apply it, tell everyone on the page, and offer Undo. */
+async function ghlDo(op, p, label){
+  const j = await ghl(op, p);
+  document.dispatchEvent(new CustomEvent('el-ghl', {detail: {domain: S.domain, op}}));
+  if (j.undo){ const u = j.undo; undoPush(label, async () => { await ghl(u.op, u.p, {undo: true}); document.dispatchEvent(new CustomEvent('el-ghl', {detail: {domain: S.domain, op: u.op}})); }); }
+  else toast(label);
+  return j;
+}
+const ghlErr = e => '<div class="err">' + ic('lock', 22) + '<br><b>' + (e && e.code === 'scope' ? 'One more permission needed' : 'Easyleads didn’t answer') + '</b><br>' + esc(e && e.message || 'Try again in a moment.') + '</div>';
+function ghlWire(h, paint){
+  const dom = S.domain;
+  const on = e => { if (!h.isConnected){ document.removeEventListener('el-ghl', on); return; } if (e.detail.domain === dom) paint(true); };
+  document.addEventListener('el-ghl', on);
+}
+const GH = {};   /* per business: pipelines, calendars */
+const ghPipes = () => (GH[S.domain] = GH[S.domain] || {}).pipes || (GH[S.domain].pipes = ghl('pipelines').then(j => j.pipelines || [], e => { delete GH[S.domain].pipes; throw e; }));
+const ghCals = () => (GH[S.domain] = GH[S.domain] || {}).cals || (GH[S.domain].cals = ghl('calendars').then(j => j.calendars || [], e => { delete GH[S.domain].cals; throw e; }));
+const ghLive = '<span class="gh-live" title="Changes here are made in Easyleads right away">' + ic('bolt', 12) + 'Live in Easyleads</span>';
+const ghStatus = {open: ['Open', '#1d7cf2'], won: ['Won', '#0f9d6b'], lost: ['Lost', '#e0413a'], abandoned: ['Abandoned', '#8a93a3']};
+
+/* ----- Deals pipeline: drag a deal to another stage and it moves in Easyleads ----- */
+function drawGhlDeals(h, D, it){
+  const st = S.ui[it.id] = S.ui[it.id] || {pipe: '', q: ''};
+  h.innerHTML = '<div class="gh-top">' + ghLive + '<select class="gh-sel" data-pipe><option>Loading pipelines…</option></select><label class="search gh-q">' + ic('search', 16) + '<input type="search" data-q placeholder="Find a deal or contact…" value="' + esc(st.q) + '"></label><button class="btn go sm" type="button" data-new>' + ic('plus', 14) + 'New deal</button></div>' +
+    '<div class="cr-board gh-board" data-b>' + Array.from({length: 4}, () => '<div class="cr-col">' + crmLoading(3) + '</div>').join('') + '</div>';
+  const B = h.querySelector('[data-b]'), sel = h.querySelector('[data-pipe]');
+  let pipes = [], opps = [];
+  const pipe = () => pipes.find(x => x.id === st.pipe) || pipes[0];
+  const render = () => {
+    const pl = pipe(); if (!pl){ B.innerHTML = '<div class="empty">No pipelines in this Easyleads account yet.</div>'; return; }
+    const q = st.q.toLowerCase(), list = opps.filter(o => !q || (o.name + ' ' + o.contact + ' ' + o.email).toLowerCase().indexOf(q) > -1);
+    B.style.gridTemplateColumns = 'repeat(' + pl.stages.length + ',minmax(220px,1fr))';
+    B.innerHTML = pl.stages.map((s, si) => {
+      const L = list.filter(o => o.stageId === s.id), sum = L.reduce((a, o) => a + o.value, 0), col = ['#1d7cf2', '#7c3aed', '#d9820b', '#0891b2', '#0f9d6b', '#db2777', '#475569'][si % 7];
+      return '<div class="cr-col" data-st="' + esc(s.id) + '" style="--c:' + col + '"><div class="cr-ch"><i></i>' + esc(s.name) + '<b>' + fmt(L.length) + '</b>' + (sum ? '<em>' + money(sum) + '</em>' : '') + '</div><div class="cr-cards">' +
+        (L.length ? L.map(o => '<div class="cr-card" draggable="true" data-id="' + esc(o.id) + '"><div class="cc-top"><span class="cc-av" style="background:' + hue(o.contact) + '">' + esc(initials(o.contact)) + '</span><div class="cc-n"><b>' + esc(o.name) + '</b><small>' + esc(o.contact) + '</small></div>' + (o.value ? '<em>' + money(o.value) + '</em>' : '') + '</div>' +
+          (o.status !== 'open' ? '<div class="cc-meta"><span class="cr-st" style="--c:' + (ghStatus[o.status] || ghStatus.open)[1] + '"><i></i>' + esc((ghStatus[o.status] || ghStatus.open)[0]) + '</span></div>' : '') + '</div>').join('') : '<div class="cr-empty">Drop a deal here</div>') + '</div></div>';
+    }).join('');
+    B.querySelectorAll('.cr-card').forEach(card => {
+      card.addEventListener('click', () => { const o = opps.find(x => x.id === card.dataset.id); if (o) ghlDeal(o, pl); });
+      card.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', card.dataset.id); card.classList.add('drag'); B.classList.add('dragging'); });
+      card.addEventListener('dragend', () => { card.classList.remove('drag'); B.classList.remove('dragging'); B.querySelectorAll('.over').forEach(x => x.classList.remove('over')); });
+    });
+    B.querySelectorAll('.cr-col').forEach(col => {
+      col.addEventListener('dragover', e => { e.preventDefault(); col.classList.add('over'); });
+      col.addEventListener('dragleave', e => { if (!col.contains(e.relatedTarget)) col.classList.remove('over'); });
+      col.addEventListener('drop', async e => {
+        e.preventDefault(); col.classList.remove('over');
+        const o = opps.find(x => x.id === e.dataTransfer.getData('text/plain')), sid = col.dataset.st;
+        if (!o || o.stageId === sid) return;
+        const was = o.stageId, sname = (pl.stages.find(s => s.id === sid) || {}).name;
+        o.stageId = sid; render();
+        try{ await ghlDo('opp.move', {id: o.id, pipelineId: pl.id, stageId: sid}, 'Moved “' + o.name + '” to ' + sname); }
+        catch(err){ o.stageId = was; render(); toast(err.message); }
+      });
+    });
+  };
+  const load = async quiet => {
+    try{
+      if (!pipes.length){ pipes = await ghPipes(); if (!st.pipe && pipes[0]) st.pipe = pipes[0].id; sel.innerHTML = pipes.map(x => '<option value="' + esc(x.id) + '"' + (x.id === st.pipe ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('') || '<option>No pipelines</option>'; }
+      const pl = pipe(); if (!pl){ render(); return; }
+      opps = (await ghl('opps', {pipelineId: pl.id})).opps || [];
+      if (h.isConnected) keepScroll(h, '.cr-cards', render);
+    }catch(e){ if (!quiet) B.innerHTML = ghlErr(e); }
+  };
+  sel.addEventListener('change', () => { st.pipe = sel.value; opps = []; B.innerHTML = Array.from({length: 4}, () => '<div class="cr-col">' + crmLoading(3) + '</div>').join(''); load(); });
+  h.querySelector('[data-q]').addEventListener('input', e => { st.q = e.target.value; render(); });
+  h.querySelector('[data-new]').addEventListener('click', () => { const pl = pipe(); if (pl) ghlNewDeal(pl); });
+  load(); ghlWire(h, load);
+}
+/* A deal: value, status and stage, all saved in Easyleads. */
+function ghlDeal(o, pl){
+  const b = drawer(o.name, [['Contact', o.contact], ['Email', o.email], ['Phone', o.phone]], '<div class="gh-d" data-g></div>', {icon: 'money', tint: '#0f7a58', sub: ghLive, rw: true});
+  const box = b.querySelector('[data-g]');
+  const paint = () => {
+    box.innerHTML = '<div class="pp-h">' + ic('funnel', 14) + 'Stage</div><div class="cr-steps gh-steps">' + pl.stages.map(s => '<button type="button" data-s="' + esc(s.id) + '"' + (s.id === o.stageId ? ' class="on"' : '') + ' style="--c:#1d7cf2">' + esc(s.name) + '</button>').join('') + '</div>' +
+      '<div class="pp-h">' + ic('check', 14) + 'Status</div><div class="cr-steps">' + Object.keys(ghStatus).map(k => '<button type="button" data-status="' + k + '"' + (o.status === k ? ' class="on"' : '') + ' style="--c:' + ghStatus[k][1] + '">' + ghStatus[k][0] + '</button>').join('') + '</div>' +
+      '<div class="cr-fields gh-two"><label><span>' + ic('form', 13) + 'Deal name</span><input data-f="name" value="' + esc(o.name) + '"></label><label><span>' + ic('money', 13) + 'Value</span><input data-f="monetaryValue" type="number" min="0" step="50" value="' + (o.value || '') + '"></label></div>' +
+      (o.contactId ? '<button class="btn" type="button" data-ct>' + ic('users', 14) + 'Open ' + esc(o.contact) + '</button>' : '');
+    box.querySelectorAll('[data-s]').forEach(x => x.addEventListener('click', async () => { if (x.dataset.s === o.stageId) return; const was = o.stageId; o.stageId = x.dataset.s; paint();
+      try{ await ghlDo('opp.move', {id: o.id, pipelineId: pl.id, stageId: o.stageId}, 'Moved “' + o.name + '” to ' + x.textContent); }catch(e){ o.stageId = was; paint(); toast(e.message); } }));
+    box.querySelectorAll('[data-status]').forEach(x => x.addEventListener('click', async () => { const s = x.dataset.status; if (s === o.status) return; const was = o.status; o.status = s; paint();
+      if (s === 'won') edgeConfetti(x);
+      try{ await ghlDo('opp.update', {id: o.id, status: s}, 'Marked “' + o.name + '” ' + ghStatus[s][0]); }catch(e){ o.status = was; paint(); toast(e.message); } }));
+    box.querySelectorAll('[data-f]').forEach(inp => inp.addEventListener('change', async () => {
+      const f = inp.dataset.f, v = f === 'monetaryValue' ? Math.max(0, Number(inp.value) || 0) : inp.value.trim(); if (!v && f === 'name') return;
+      const was = f === 'name' ? o.name : o.value;
+      try{ await ghlDo('opp.update', {id: o.id, [f]: v}, f === 'name' ? 'Renamed the deal' : 'Set the deal value to ' + money(v)); if (f === 'name') o.name = v; else o.value = v; }
+      catch(e){ inp.value = was || ''; toast(e.message); }
+    }));
+    const ct = box.querySelector('[data-ct]'); if (ct) ct.addEventListener('click', () => { b.close(); ghlContact(o.contactId, o.contact); });
+  };
+  paint();
+}
+/* New deal: pick a contact, name it, give it a value, pick the stage. */
+function ghlNewDeal(pl){
+  const m = document.createElement('div'); m.className = 'modal-back';
+  m.innerHTML = '<div class="modal gh-modal" role="dialog" aria-modal="true"><div class="gh-mh"><div><h2>New deal</h2>' + ghLive + '</div><button class="iconbtn" type="button" data-x aria-label="Close">' + ic('x') + '</button></div>' +
+    '<div class="pp-h">' + ic('users', 14) + 'Contact</div><label class="search">' + ic('search', 16) + '<input type="search" data-cq placeholder="Search a contact by name, email or phone…"></label><div class="gh-pick" data-cl></div>' +
+    '<div class="cr-fields gh-two"><label><span>' + ic('form', 13) + 'Deal name</span><input data-n placeholder="e.g. Kitchen renovation"></label><label><span>' + ic('money', 13) + 'Value</span><input data-v type="number" min="0" step="50" placeholder="$0"></label></div>' +
+    '<div class="pp-h">' + ic('funnel', 14) + 'Stage</div><div class="cr-steps gh-steps">' + pl.stages.map((s, i) => '<button type="button" data-s="' + esc(s.id) + '"' + (i ? '' : ' class="on"') + ' style="--c:#1d7cf2">' + esc(s.name) + '</button>').join('') + '</div>' +
+    '<div class="gh-mf"><button class="btn" type="button" data-x>Cancel</button><button class="btn go" type="button" data-go disabled>' + ic('plus', 14) + 'Create in Easyleads</button></div></div>';
+  document.body.appendChild(m);
+  let contact = null, stage = pl.stages[0] && pl.stages[0].id, t = 0;
+  const close = () => m.remove();
+  m.addEventListener('click', e => { if (e.target === m) close(); });
+  m.querySelectorAll('[data-x]').forEach(x => x.addEventListener('click', close));
+  const go = m.querySelector('[data-go]'), cl = m.querySelector('[data-cl]'), n = m.querySelector('[data-n]');
+  const ready = () => { go.disabled = !(contact && stage); };
+  const search = async q => { cl.innerHTML = crmLoading(2); try{ const r = (await ghl('contacts', {q})).contacts || []; cl.innerHTML = r.length ? r.slice(0, 8).map((c, i) => '<button type="button" data-i="' + i + '"' + (contact && contact.id === c.id ? ' class="on"' : '') + '><span class="cc-av" style="background:' + hue(c.name) + '">' + esc(initials(c.name)) + '</span><span><b>' + esc(c.name) + '</b><small>' + esc([c.email, c.phone].filter(Boolean).join(' · ')) + '</small></span></button>').join('') : '<div class="cr-empty">No contacts match.</div>';
+    cl.querySelectorAll('[data-i]').forEach(x => x.addEventListener('click', () => { contact = r[Number(x.dataset.i)]; cl.querySelectorAll('button').forEach(y => y.classList.toggle('on', y === x)); if (!n.value) n.value = contact.name; ready(); })); }catch(e){ cl.innerHTML = ghlErr(e); } };
+  m.querySelector('[data-cq]').addEventListener('input', e => { clearTimeout(t); t = setTimeout(() => search(e.target.value.trim()), 300); });
+  m.querySelectorAll('[data-s]').forEach(x => x.addEventListener('click', () => { stage = x.dataset.s; m.querySelectorAll('[data-s]').forEach(y => y.classList.toggle('on', y === x)); ready(); }));
+  go.addEventListener('click', async () => { go.disabled = true; go.innerHTML = '<span class="spin"></span>Creating…';
+    try{ await ghlDo('opp.create', {contactId: contact.id, pipelineId: pl.id, stageId: stage, name: n.value.trim() || contact.name, value: m.querySelector('[data-v]').value}, 'Created deal “' + (n.value.trim() || contact.name) + '”'); close(); }
+    catch(e){ toast(e.message); go.disabled = false; go.innerHTML = ic('plus', 14) + 'Create in Easyleads'; } });
+  search('');
+  setTimeout(() => m.querySelector('[data-cq]').focus(), 30);
+}
+
+/* ----- Contacts: search, open, edit ----- */
+function drawGhlContacts(h, D, it){
+  const st = S.ui[it.id] = S.ui[it.id] || {q: ''};
+  h.innerHTML = '<div class="gh-top">' + ghLive + '<label class="search gh-q">' + ic('search', 16) + '<input type="search" data-q placeholder="Search contacts by name, email or phone…" value="' + esc(st.q) + '"></label></div><div class="gh-list" data-l>' + crmLoading(5) + '</div>';
+  const L = h.querySelector('[data-l]'); let t = 0, seq = 0;
+  const load = async quiet => {
+    const my = ++seq;
+    try{
+      const r = (await ghl('contacts', {q: st.q})).contacts || []; if (my !== seq || !h.isConnected) return;
+      L.innerHTML = r.length ? r.map((c, i) => '<button type="button" class="gh-row" data-i="' + i + '"><span class="cc-av" style="background:' + hue(c.name) + '">' + esc(initials(c.name)) + '</span><span class="gh-rt"><b>' + esc(c.name) + '</b><small>' + esc([c.email, c.phone, c.company].filter(Boolean).join(' · ') || 'No details') + '</small></span><span class="gh-tags">' + (c.tags || []).slice(0, 3).map(x => '<i>' + esc(x) + '</i>').join('') + ((c.tags || []).length > 3 ? '<i>+' + (c.tags.length - 3) + '</i>' : '') + '</span>' + ic('chev', 14) + '</button>').join('') : '<div class="empty">' + (st.q ? 'No contacts match “' + esc(st.q) + '”.' : 'No contacts yet.') + '</div>';
+      L.querySelectorAll('[data-i]').forEach(x => x.addEventListener('click', () => { const c = r[Number(x.dataset.i)]; ghlContact(c.id, c.name); }));
+    }catch(e){ if (!quiet) L.innerHTML = ghlErr(e); }
+  };
+  h.querySelector('[data-q]').addEventListener('input', e => { st.q = e.target.value.trim(); clearTimeout(t); t = setTimeout(load, 300); });
+  load(); ghlWire(h, load);
+}
+/* The contact card: details, tags, notes, tasks, appointments and messages, all live in Easyleads. */
+function ghlContact(id, name){
+  const b = drawer(name || 'Contact', [], '<div class="gh-c" data-g>' + crmLoading(4) + '</div>', {sub: ghLive, rw: true});
+  const box = b.querySelector('[data-g]');
+  let C = null, tab = 'note';
+  const load = async () => { try{ C = await ghl('contact', {id}); if (box.isConnected) paint(); }catch(e){ box.innerHTML = ghlErr(e); } };
+  const when = s => s ? new Date(s).toLocaleString('en-CA', {weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'}) : '';
+  const paint = () => {
+    const c = C.contact, notes = C.notes || [], tasks = C.tasks || [], appts = (C.appts || []).filter(a => a.status !== 'cancelled').sort((x, y) => new Date(x.start) - new Date(y.start));
+    b.querySelector('.dh h3').textContent = c.name;
+    box.innerHTML =
+      '<div class="gh-acts">' + [['note', 'edit', 'Note'], ['task', 'check', 'Task'], ['appt', 'cal', 'Appointment'], ['msg', 'send', 'Message'], ['deal', 'money', 'Deal']].map(x => '<button type="button" data-tab="' + x[0] + '"' + (tab === x[0] ? ' class="on"' : '') + '>' + ic(x[1], 15) + x[2] + '</button>').join('') + '</div>' +
+      '<div class="gh-panel" data-panel></div>' +
+      '<div class="pp-h">' + ic('users', 14) + 'Details</div><div class="cr-fields gh-two">' + [['firstName', 'First name'], ['lastName', 'Last name'], ['email', 'Email'], ['phone', 'Phone'], ['companyName', 'Company']].map(f => '<label><span>' + esc(f[1]) + '</span><input data-f="' + f[0] + '" value="' + esc(c[f[0]]) + '"></label>').join('') + '</div>' +
+      '<div class="pp-h">' + ic('spark', 14) + 'Tags</div><div class="gh-tagbox">' + (c.tags || []).map(t => '<span class="gh-tag">' + esc(t) + '<button type="button" data-untag="' + esc(t) + '" aria-label="Remove tag">' + ic('x', 10) + '</button></span>').join('') + '<input data-tag placeholder="Add a tag and press Enter"></div>' +
+      '<div class="pp-h">' + ic('cal', 14) + 'Appointments</div><div class="gh-items">' + (appts.length ? appts.map(a => '<div class="gh-item"><span class="cr-evi" style="--c:#0891b2">' + ic('cal', 12) + '</span><div><b>' + esc(a.title || 'Appointment') + '</b><small>' + esc(when(a.start)) + ' · ' + esc(a.status || '') + '</small></div><div class="gh-ia"><button class="cr-ib" type="button" data-move="' + esc(a.id) + '" data-cal="' + esc(a.calendarId) + '">Move</button><button class="cr-ib" type="button" data-cancel="' + esc(a.id) + '">Cancel</button></div></div>').join('') : '<div class="cr-empty">No upcoming appointments.</div>') + '</div>' +
+      '<div class="pp-h">' + ic('check', 14) + 'Tasks</div><div class="gh-items">' + (tasks.length ? tasks.map(t => '<label class="gh-item gh-task' + (t.done ? ' done' : '') + '"><input type="checkbox" data-task="' + esc(t.id) + '"' + (t.done ? ' checked' : '') + '><div><b>' + esc(t.title) + '</b><small>' + (t.due ? 'Due ' + esc(when(t.due)) : 'No due date') + '</small></div></label>').join('') : '<div class="cr-empty">No tasks.</div>') + '</div>' +
+      '<div class="pp-h">' + ic('edit', 14) + 'Notes</div><div class="cr-notes">' + (notes.length ? notes.map(n => '<div class="cr-nt"><span class="cc-av" style="background:#475569">' + ic('edit', 12) + '</span><div><div class="cr-nh"><small>' + esc(when(n.at)) + '</small></div><div class="cr-nx">' + esc(n.body) + '</div></div></div>').join('') : '<div class="cr-empty">No notes yet.</div>') + '</div>';
+    panel();
+    box.querySelectorAll('[data-tab]').forEach(x => x.addEventListener('click', () => { tab = tab === x.dataset.tab ? '' : x.dataset.tab; box.querySelectorAll('[data-tab]').forEach(y => y.classList.toggle('on', y.dataset.tab === tab)); panel(); }));
+    box.querySelectorAll('[data-f]').forEach(inp => inp.addEventListener('change', async () => {
+      const f = inp.dataset.f, v = inp.value.trim(), was = c[f]; if (v === was) return;
+      try{ await ghlDo('contact.update', {id, [f]: v}, 'Updated ' + c.name); c[f] = v; }catch(e){ inp.value = was; toast(e.message); }
+    }));
+    const tg = box.querySelector('[data-tag]');
+    tg.addEventListener('keydown', async e => { if (e.key !== 'Enter') return; e.preventDefault(); const v = tg.value.trim(); if (!v) return; tg.disabled = true;
+      try{ await ghlDo('tags.add', {id, tags: [v]}, 'Tagged ' + c.name + ' “' + v + '”'); }catch(err){ toast(err.message); tg.disabled = false; } });
+    box.querySelectorAll('[data-untag]').forEach(x => x.addEventListener('click', async () => { try{ await ghlDo('tags.remove', {id, tags: [x.dataset.untag]}, 'Removed tag “' + x.dataset.untag + '”'); }catch(e){ toast(e.message); } }));
+    box.querySelectorAll('[data-task]').forEach(x => x.addEventListener('change', async () => { try{ await ghlDo('task.done', {id, taskId: x.dataset.task, done: x.checked}, x.checked ? 'Task done' : 'Task reopened'); }catch(e){ x.checked = !x.checked; toast(e.message); } }));
+    box.querySelectorAll('[data-cancel]').forEach(x => x.addEventListener('click', async () => { if (!confirm('Cancel this appointment in Easyleads?')) return; try{ await ghlDo('appt.status', {eventId: x.dataset.cancel, status: 'cancelled'}, 'Cancelled the appointment'); }catch(e){ toast(e.message); } }));
+    box.querySelectorAll('[data-move]').forEach(x => x.addEventListener('click', () => { tab = 'appt'; panel({move: x.dataset.move, cal: x.dataset.cal}); box.querySelector('[data-panel]').scrollIntoView({behavior: 'smooth', block: 'nearest'}); }));
+  };
+  /* The action panel under the buttons. */
+  const panel = o => {
+    const P = box.querySelector('[data-panel]'); if (!P) return;
+    P.className = 'gh-panel' + (tab ? ' open' : '');
+    const c = C.contact;
+    if (tab === 'note'){
+      P.innerHTML = '<div class="cr-comp"><textarea data-nt rows="2" placeholder="Write a note for ' + esc(c.name) + '… (Ctrl+Enter)"></textarea><button class="btn go sm" type="button" data-go>' + ic('send', 13) + 'Add note</button></div>';
+      const ta = P.querySelector('[data-nt]'), go = async () => { const v = ta.value.trim(); if (!v) return; ta.disabled = true; try{ await ghlDo('note.add', {id, body: v}, 'Added a note to ' + c.name); }catch(e){ toast(e.message); ta.disabled = false; } };
+      P.querySelector('[data-go]').addEventListener('click', go); ta.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); go(); } });
+    } else if (tab === 'task'){
+      const d = new Date(Date.now() + 864e5); d.setHours(10, 0, 0, 0);
+      const loc = new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 16);
+      P.innerHTML = '<div class="cr-fields gh-two"><label><span>Task</span><input data-tt placeholder="e.g. Call back about the quote"></label><label><span>Due</span><input data-td type="datetime-local" value="' + loc + '"></label></div><div class="gh-mf"><button class="btn go sm" type="button" data-go>' + ic('check', 13) + 'Add task</button></div>';
+      P.querySelector('[data-go]').addEventListener('click', async e => { const t = P.querySelector('[data-tt]').value.trim() || 'Follow up', dv = P.querySelector('[data-td]').value; e.currentTarget.disabled = true;
+        try{ await ghlDo('task.add', {id, title: t, due: dv ? new Date(dv).toISOString() : ''}, 'Added task “' + t + '”'); }catch(err){ toast(err.message); e.currentTarget.disabled = false; } });
+    } else if (tab === 'appt'){
+      P.innerHTML = '<div class="gh-cal"><select class="gh-sel" data-cal><option>Loading calendars…</option></select><div class="gh-days" data-days></div><div class="gh-slots" data-slots><div class="cr-empty">Pick a day.</div></div></div>';
+      const sel = P.querySelector('[data-cal]'), days = P.querySelector('[data-days]'), sl = P.querySelector('[data-slots]');
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Winnipeg';
+      let slots = {}, day = '';
+      const showDays = () => { const ks = Object.keys(slots).sort(); days.innerHTML = ks.length ? ks.slice(0, 10).map(k => { const dt = new Date(k + 'T12:00:00'); return '<button type="button" data-day="' + k + '"' + (k === day ? ' class="on"' : '') + '><small>' + dt.toLocaleDateString('en-CA', {weekday: 'short'}) + '</small><b>' + dt.getDate() + '</b><small>' + dt.toLocaleDateString('en-CA', {month: 'short'}) + '</small></button>'; }).join('') : '<div class="cr-empty">No free times in the next two weeks.</div>';
+        days.querySelectorAll('[data-day]').forEach(x => x.addEventListener('click', () => { day = x.dataset.day; showDays(); showSlots(); })); };
+      const showSlots = () => { const L = slots[day] || []; sl.innerHTML = L.length ? L.map(s => '<button type="button" data-t="' + esc(s) + '">' + new Date(s).toLocaleTimeString('en-CA', {hour: 'numeric', minute: '2-digit'}) + '</button>').join('') : '<div class="cr-empty">Pick a day.</div>';
+        sl.querySelectorAll('[data-t]').forEach(x => x.addEventListener('click', async () => {
+          const when2 = new Date(x.dataset.t).toLocaleString('en-CA', {weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'});
+          x.disabled = true; x.classList.add('on');
+          try{
+            if (o && o.move) await ghlDo('appt.move', {eventId: o.move, start: x.dataset.t}, 'Moved the appointment to ' + when2);
+            else await ghlDo('appt.book', {calendarId: sel.value, contactId: id, start: x.dataset.t, title: c.name}, 'Booked ' + c.name + ' for ' + when2);
+          }catch(e){ toast(e.message); x.disabled = false; x.classList.remove('on'); }
+        })); };
+      const loadSlots = async () => { days.innerHTML = crmLoading(1); sl.innerHTML = ''; day = '';
+        try{ const now = Date.now(); slots = (await ghl('slots', {calendarId: sel.value, from: now, to: now + 14 * 864e5, tz})).slots || {}; day = Object.keys(slots).sort()[0] || ''; showDays(); showSlots(); }catch(e){ days.innerHTML = ghlErr(e); } };
+      ghCals().then(cs => { sel.innerHTML = cs.map(k => '<option value="' + esc(k.id) + '"' + (o && o.cal === k.id ? ' selected' : '') + '>' + esc(k.name) + '</option>').join('') || '<option value="">No calendars</option>'; if (cs.length) loadSlots(); else days.innerHTML = '<div class="cr-empty">No calendars in this Easyleads account.</div>'; }, e => { days.innerHTML = ghlErr(e); });
+      sel.addEventListener('change', loadSlots);
+    } else if (tab === 'msg'){
+      P.innerHTML = '<div class="seg gh-mt"><button type="button" data-mt="SMS" class="on">SMS</button><button type="button" data-mt="Email">Email</button></div><input class="gh-subj" data-subj placeholder="Subject" hidden><div class="cr-comp"><textarea data-mx rows="3" placeholder="Write a text to ' + esc(c.name) + '…"></textarea><button class="btn go sm" type="button" data-go>' + ic('send', 13) + 'Send</button></div><div class="gh-note">' + ic('lock', 12) + 'Sent from Easyleads to ' + esc(c.phone || c.email || 'this contact') + '. A sent message can’t be undone.</div>';
+      let type = 'SMS';
+      P.querySelectorAll('[data-mt]').forEach(x => x.addEventListener('click', () => { type = x.dataset.mt; P.querySelectorAll('[data-mt]').forEach(y => y.classList.toggle('on', y === x)); P.querySelector('[data-subj]').hidden = type !== 'Email'; P.querySelector('[data-mx]').placeholder = type === 'Email' ? 'Write an email to ' + c.name + '…' : 'Write a text to ' + c.name + '…'; P.querySelector('.gh-note').innerHTML = ic('lock', 12) + 'Sent from Easyleads to ' + esc((type === 'Email' ? c.email : c.phone) || 'this contact') + '. A sent message can’t be undone.'; }));
+      P.querySelector('[data-go]').addEventListener('click', async e => {
+        const msg = P.querySelector('[data-mx]').value.trim(); if (!msg) return;
+        if (!confirm('Send this ' + (type === 'Email' ? 'email' : 'text') + ' to ' + c.name + ' now? It can’t be unsent.')) return;
+        const btn = e.currentTarget; btn.disabled = true;
+        try{ await ghlDo('message', {contactId: id, type, message: msg, subject: P.querySelector('[data-subj]').value}, (type === 'Email' ? 'Email' : 'Text') + ' sent to ' + c.name); P.querySelector('[data-mx]').value = ''; }
+        catch(err){ toast(err.message); }
+        btn.disabled = false;
+      });
+    } else if (tab === 'deal'){
+      P.innerHTML = '<div class="gh-mf" style="justify-content:flex-start"><button class="btn go sm" type="button" data-go>' + ic('plus', 13) + 'Create a deal for ' + esc(c.name) + '</button></div>';
+      P.querySelector('[data-go]').addEventListener('click', async () => { try{ const pl = (await ghPipes())[0]; if (!pl) return toast('No pipelines in this Easyleads account.'); ghlNewDealFor(pl, c); }catch(e){ toast(e.message); } });
+    } else P.innerHTML = '';
+  };
+  load();
+  const on = e => { if (!b.isConnected){ document.removeEventListener('el-ghl', on); return; } if (e.detail.domain === S.domain) load(); };
+  document.addEventListener('el-ghl', on);
+}
+function ghlNewDealFor(pl, c){
+  ghlNewDeal(pl);
+  const m = document.querySelector('.gh-modal'); if (!m) return;
+  const q = m.querySelector('[data-cq]'); q.value = c.email || c.phone || c.name; q.dispatchEvent(new Event('input'));
+}
+
+(function(){ if (document.getElementById('gh-css')) return; const st = document.createElement('style'); st.id = 'gh-css';
+  st.textContent =
+    '.gh-live{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;color:#0b5fd0;background:linear-gradient(135deg,#eaf3ff,#dcebff);border:1px solid #cfe2ff;border-radius:99px;padding:3px 10px 3px 8px;white-space:nowrap}.gh-live svg{color:#1d7cf2}' +
+    '.gh-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}.gh-q{flex:1;min-width:200px}' +
+    '.gh-sel{height:38px;border:1px solid var(--line);border-radius:11px;padding:0 34px 0 12px;font:600 13px var(--ui);background:#fff url("data:image/svg+xml;utf8,<svg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%2712%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%2364748b%27 stroke-width=%272.2%27><path d=%27M6 9l6 6 6-6%27/></svg>") no-repeat right 12px center;appearance:none;-webkit-appearance:none;color:var(--ink);cursor:pointer}' +
+    '.gh-board{grid-template-columns:repeat(4,minmax(220px,1fr))}' +
+    '.gh-list{display:flex;flex-direction:column;gap:6px;max-height:560px;overflow:auto}' +
+    '.gh-row{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:10px 12px;border:1px solid #eef0f3;border-radius:14px;background:#fff;font:inherit;cursor:pointer;transition:border-color .15s,box-shadow .15s,transform .15s}.gh-row:hover{border-color:#cfe2ff;box-shadow:0 8px 20px -14px rgba(29,124,242,.6);transform:translateY(-1px)}.gh-row>svg{color:var(--ink-3)}' +
+    '.gh-rt{flex:1;min-width:0;line-height:1.35}.gh-rt b{display:block;font-size:14px}.gh-rt small{display:block;font-size:12px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+    '.gh-tags{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;max-width:40%}.gh-tags i{font-style:normal;font-size:11px;font-weight:600;color:#3b4760;background:#f1f4f9;border-radius:99px;padding:2px 8px}' +
+    '.gh-acts{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:4px 0 10px}.gh-acts button{display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 4px;border:1px solid var(--line);border-radius:14px;background:#fff;font:600 12px var(--ui);color:var(--ink-2);cursor:pointer;transition:all .18s}.gh-acts button svg{color:#1d7cf2}.gh-acts button:hover{border-color:#bcd6ff;background:#f6faff}.gh-acts button.on{background:linear-gradient(135deg,#2b88f5,#1d7cf2);border-color:#1d7cf2;color:#fff;box-shadow:0 10px 22px -12px rgba(29,124,242,.9)}.gh-acts button.on svg{color:#fff}' +
+    '.gh-panel{display:none;margin-bottom:16px;padding:14px;border-radius:16px;background:linear-gradient(180deg,#f6faff,#fff);border:1px solid #e1edff}.gh-panel.open{display:block;animation:crIn .25s ease both}.gh-panel:empty{display:none}.gh-panel .cr-comp{margin-bottom:0}' +
+    '.gh-two{grid-template-columns:1fr 1fr!important;margin-bottom:12px}.gh-mf{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}' +
+    '.gh-tagbox{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:12px;margin-bottom:16px}.gh-tagbox input{flex:1;min-width:140px;border:0;font:inherit;font-size:13px;padding:4px;outline:none}' +
+    '.gh-tag{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:#0b5fd0;background:#eaf3ff;border-radius:99px;padding:3px 4px 3px 10px}.gh-tag button{border:0;background:none;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;color:#5b8fd8;cursor:pointer}.gh-tag button:hover{background:#d3e5ff;color:#0b5fd0}' +
+    '.gh-items{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}.gh-item{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid #eef0f3;border-radius:12px;background:#fff}.gh-item>div{flex:1;min-width:0;line-height:1.35}.gh-item b{display:block;font-size:13px}.gh-item small{display:block;font-size:11.5px;color:var(--ink-3)}.gh-ia{display:flex;gap:5px;flex:none!important}' +
+    '.gh-task{cursor:pointer}.gh-task input{width:18px;height:18px;accent-color:#0f9d6b;flex:none}.gh-task.done b{text-decoration:line-through;color:var(--ink-3)}' +
+    '.gh-cal{display:flex;flex-direction:column;gap:10px}.gh-days{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}.gh-days button{flex:none;width:58px;padding:7px 0;border:1px solid var(--line);border-radius:12px;background:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center;line-height:1.2;font:inherit}.gh-days button b{font:700 17px var(--display)}.gh-days button small{font-size:10.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em}.gh-days button.on{background:#1d7cf2;border-color:#1d7cf2;color:#fff}.gh-days button.on small{color:rgba(255,255,255,.8)}' +
+    '.gh-slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:6px}.gh-slots button{height:34px;border:1px solid #cfe2ff;border-radius:10px;background:#fff;color:#0b5fd0;font:600 12.5px var(--ui);cursor:pointer;transition:all .15s}.gh-slots button:hover{background:#eaf3ff}.gh-slots button.on{background:#1d7cf2;color:#fff;border-color:#1d7cf2}' +
+    '.gh-mt{margin-bottom:8px}.gh-subj{width:100%;box-sizing:border-box;height:38px;border:1px solid var(--line);border-radius:10px;padding:0 11px;font:inherit;font-size:13.5px;margin-bottom:8px}.gh-note{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-3);margin-top:8px}' +
+    '.gh-modal{width:min(560px,100%)}.gh-mh{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px}.gh-mh h2{margin:0 0 6px}' +
+    '.gh-pick{display:flex;flex-direction:column;gap:4px;max-height:220px;overflow:auto;margin:8px 0 14px}.gh-pick button{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid transparent;border-radius:12px;background:#fafbfc;font:inherit;text-align:left;cursor:pointer}.gh-pick button span:last-child{line-height:1.3}.gh-pick b{display:block;font-size:13.5px}.gh-pick small{display:block;font-size:11.5px;color:var(--ink-3)}.gh-pick button:hover{background:#f1f6ff}.gh-pick button.on{border-color:#1d7cf2;background:#eaf3ff}' +
+    '.gh-steps{grid-template-columns:repeat(auto-fit,minmax(110px,1fr))!important}' +
+    '.eb-wr{margin-left:8px}.eb-wr.on{background:linear-gradient(135deg,#2b88f5,#1d7cf2);border-color:#1d7cf2;color:#fff}';
+  document.head.appendChild(st); })();
+
+const deskDash = () => ({id: uid(), name: 'Sales desk', items: [item('note', 12, {title: 'Your sales desk', about: 'ghl_deals', text: 'Move deals, update contacts, add tasks and notes, book appointments and send messages. Everything you do here happens in Easyleads right away, and Ctrl+Z undoes it.'}), item('ghl_deals', 12), item('ghl_contacts', 12)]});
 (async function boot(){
   /* "Open as client" from the EDGE tool passes a short session in the address. */
   const hash = new URLSearchParams(location.hash.slice(1));
