@@ -147,6 +147,8 @@ main{max-width:1240px;margin:0 auto;padding:44px 32px 90px}
 .user .av{width:32px;height:32px;border-radius:50%;background:var(--ink);color:#fff;font-size:11.5px;font-weight:600;display:grid;place-items:center;flex:none;letter-spacing:.02em}
 .user .who{flex:1;min-width:0;line-height:1.3}
 .user .who b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;font-size:13.5px}
+.lvb{display:inline-block;margin-left:7px;vertical-align:1px;font-size:10.5px;font-weight:700;border-radius:99px;padding:1px 7px;background:#eef2f8;color:#475569}.lvb.lv1{background:#e8f7f0;color:#0f7a58}.lvb.lv2{background:#eaf3ff;color:#0b5fd0}.lvb.lv3{background:#f3ebff;color:#6d28d9}
+.lvs{display:flex;flex-direction:column;gap:8px;margin:6px 0 4px}.lvo{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border:1px solid #e3e7ee;border-radius:14px;cursor:pointer;transition:border-color .15s,background .15s}.lvo:hover{border-color:#bcd6ff}.lvo input{position:absolute;opacity:0;pointer-events:none}.lvr{flex:none;width:18px;height:18px;border-radius:50%;border:2px solid #c6cfdc;margin-top:1px;transition:all .15s}.lvo b{display:block;font-size:14px}.lvo small{display:block;font-size:12.5px;color:#64748b;margin-top:2px;line-height:1.4}.lvo:has(input:checked){border-color:#1d7cf2;background:#f3f8ff}.lvo:has(input:checked) .lvr{border-color:#1d7cf2;box-shadow:inset 0 0 0 4px #fff;background:#1d7cf2}
 .user .who small{color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;font-size:12px}
 .user.off{opacity:.5}
 .user .btn.sm{opacity:.85}
@@ -729,7 +731,7 @@ async function fetchAll() {
   return { a, b, g, sc };
 }
 function apply(data) {
-  S.users = data.a.users || []; S.scopes = data.a.scopes; if (data.g && data.g.ok) S.ga = data.g; if (data.sc && data.sc.ok) S.gsc = data.sc; aiLoad();
+  S.users = data.a.users || []; S.ghl = data.a.ghlLevels || {}; S.scopes = data.a.scopes; if (data.g && data.g.ok) S.ga = data.g; if (data.sc && data.sc.ok) S.gsc = data.sc; aiLoad();
   const extra = {}; (data.b.clients || []).forEach(c => extra[c.domain] = c);
   S.clients = (data.a.clients || []).map(c => Object.assign({}, c, extra[c.domain] || {}));
   S.info = {}; S.clients.forEach(c => S.info[c.domain] = { logo: c.logo, icon: c.icon, site: c.site, sk: c.sk });
@@ -817,8 +819,8 @@ function card(c, idx) {
     (c.site || gaOf(c) ? '<button class="garow ai' + (aiState(c).on ? '' : ' add') + '" data-x="ai">' + IX.spark + '<span><b>AI visibility</b> · ' + esc(aiState(c).txt) + '</span>' + (aiState(c).on ? '<span class="link">Details</span>' : I.plus) + '</button>' : '') +
     '<div class="sep"></div>' +
     '<div class="row"><button class="tog' + (c.bot ? ' on' : '') + '" data-x="bot"><i></i>Assistant ' + (c.bot ? 'on' : 'off') + '</button>' + (c.bot ? '<button class="link" data-x="chats">' + I.chat + 'Read chats</button>' : '') + '</div>' +
-    '<div class="users">' + us.map(u => '<div class="user' + (u.disabled ? ' off' : '') + '" data-u="' + esc(u.id) + '"><div class="av">' + esc(initials(u.name || u.email)) + '</div><div class="who"><b>' + esc(u.name || u.email) + (u.disabled ? ' · off' : '') + '</b><small>' + esc(u.email) + ' · ' + ago(u.lastSeen || u.lastLogin) + '</small></div>' +
-      '<button class="btn sm" data-ux="as" title="Open the dashboard as this client">' + I.eye + 'Open</button><div class="menu"><button class="btn sm ghost icon" data-more>' + I.dots + '</button><div class="dd"><button data-ux="edit">' + I.edit + 'Edit login</button><button data-ux="toggle">' + I.power + (u.disabled ? 'Turn back on' : 'Turn off') + '</button><button data-ux="signout">' + I.out + 'Sign out everywhere</button><hr><button data-ux="del" class="bad">' + I.trash + 'Delete login</button></div></div></div>').join('') + '</div>' +
+    '<div class="users">' + us.map(u => '<div class="user' + (u.disabled ? ' off' : '') + '" data-u="' + esc(u.id) + '"><div class="av">' + esc(initials(u.name || u.email)) + '</div><div class="who"><b>' + esc(u.name || u.email) + (u.disabled ? ' · off' : '') + (c.connected && S.ghl && S.ghl[u.id] ? '<span class="lvb lv' + S.ghl[u.id] + '" title="Easyleads access">' + LV[S.ghl[u.id]] + '</span>' : '') + '</b><small>' + esc(u.email) + ' · ' + ago(u.lastSeen || u.lastLogin) + '</small></div>' +
+      '<button class="btn sm" data-ux="as" title="Open the dashboard as this client">' + I.eye + 'Open</button><div class="menu"><button class="btn sm ghost icon" data-more>' + I.dots + '</button><div class="dd">' + (c.connected ? '<button data-ux="ghl">' + I.key + 'Easyleads access</button>' : '') + '<button data-ux="edit">' + I.edit + 'Edit login</button><button data-ux="toggle">' + I.power + (u.disabled ? 'Turn back on' : 'Turn off') + '</button><button data-ux="signout">' + I.out + 'Sign out everywhere</button><hr><button data-ux="del" class="bad">' + I.trash + 'Delete login</button></div></div></div>').join('') + '</div>' +
     '<button class="addlogin" data-x="login">' + I.plus + (us.length ? 'Add another login' : 'Create their login') + '</button></div></div>';
 }
 async function siteStatus(d) {
@@ -1189,10 +1191,28 @@ async function clientAct(a, c) {
     }
   } catch (err) { if (a === 'chats') toast(err.message, 1); }
 }
+/* Easyleads access per login (what they may change in Easyleads from the dashboard). The backend enforces it. */
+const LV = ['View only', 'Notes & tasks', 'Sales', 'Full'];
+const LVD = ['Sees their dashboard. Can’t change anything in Easyleads.', 'Adds notes and tasks, ticks tasks off and tags contacts.', 'Also moves deals, edits contact details, books, moves and cancels appointments and drafts campaigns.', 'Also sends texts and emails, and sends campaigns.'];
+function ghlForm(u) {
+  const cur = (S.ghl || {})[u.id] || 0;
+  const m = modal('<h2>Easyleads access</h2><p class="s">What ' + esc(u.name || u.email) + ' may change in Easyleads from their dashboard. It applies to every Easyleads business this login can see, and every change is logged.</p><form><div class="lvs">' +
+    LV.map((n, i) => '<label class="lvo"><input type="radio" name="lv" value="' + i + '"' + (i === cur ? ' checked' : '') + '><span class="lvr"></span><span><b>' + n + '</b><small>' + LVD[i] + '</small></span></label>').join('') +
+    '</div><div class="err" hidden></div><div class="mf"><button type="button" class="btn" data-close>Cancel</button><button class="btn pri">Save access</button></div></form>');
+  const f = $('form', m.el);
+  f.onsubmit = async e => {
+    e.preventDefault();
+    const lv = Number(($('input[name=lv]:checked', f) || {}).value || 0), er = $('.err', f), btn = $('.btn.pri', f);
+    btn.disabled = true;
+    try { await call('portalAdminGhl', { id: u.id, level: lv }); (S.ghl = S.ghl || {})[u.id] = lv; m.close(); draw(); toast((u.name || u.email) + ': ' + LV[lv]); }
+    catch (err) { er.hidden = false; er.textContent = err.message; btn.disabled = false; }
+  };
+}
 async function userAct(a, u) {
   if (!u) return;
   $$('.menu.open').forEach(x => x.classList.remove('open'));
   try {
+    if (a === 'ghl') return ghlForm(u);
     if (a === 'edit') return userForm(u);
     if (a === 'as') {
       const w = window.open('about:blank', '_blank');
