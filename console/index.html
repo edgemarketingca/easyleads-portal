@@ -284,6 +284,29 @@ textarea.in{height:auto;padding:10px 13px}
 @keyframes burst{to{transform:translate(var(--x),var(--y)) rotate(var(--r));opacity:0}}
 
 /* ---------- toasts ---------- */
+.cb{position:relative}
+.cb-btn{position:relative;display:inline-grid;place-items:center;width:38px;height:38px;border-radius:12px;border:1px solid var(--line);background:#fff;cursor:pointer;color:var(--ink-2)}
+.cb-btn:hover{border-color:#0086ff;color:#0074e6}
+.cb-btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.cb-btn.ring svg{animation:cbring 1s ease-in-out 2}
+@keyframes cbring{0%,100%{transform:rotate(0)}15%{transform:rotate(14deg)}30%{transform:rotate(-12deg)}45%{transform:rotate(9deg)}60%{transform:rotate(-6deg)}75%{transform:rotate(3deg)}}
+.cb-n{position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#e5484d;color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;box-shadow:0 0 0 2px #fff}
+.cb-n[hidden]{display:none}
+.cb-panel{position:absolute;right:0;top:calc(100% + 10px);width:min(420px,92vw);background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 30px 60px -24px rgba(11,12,15,.4);z-index:40;overflow:hidden}
+.cb-panel[hidden]{display:none}
+.cb-h{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px 10px;border-bottom:1px solid var(--line-2)}
+.cb-h b{font-size:14px}.cb-h small{display:block;font-size:11.5px;color:var(--mute);font-weight:500;margin-top:2px}
+.cb-h button{border:0;background:none;color:#0074e6;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+.cb-list{max-height:60vh;overflow:auto;margin:0;padding:6px;list-style:none}
+.cb-list li{padding:10px 10px;border-radius:12px;cursor:default;display:grid;gap:2px}
+.cb-list li.new{background:#eef6ff}
+.cb-list li:hover{background:var(--line-2)}
+.cb-list li b{font-size:13px}.cb-list li .m{font-size:12.5px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cb-list li .t{font-size:11.5px;color:var(--mute)}
+.cb-empty{padding:26px 16px;text-align:center;color:var(--mute);font-size:13px}
+.cb-pop{position:fixed;top:74px;right:24px;z-index:90;background:var(--ink);color:#fff;border-radius:14px;padding:12px 38px 12px 14px;box-shadow:0 20px 44px -14px rgba(11,12,15,.55);max-width:340px;cursor:pointer;animation:tin .35s var(--ease)}
+.cb-pop b{display:block;font-size:13.5px}.cb-pop span{display:block;font-size:12.5px;opacity:.8;margin-top:2px}
+.cb-pop button{position:absolute;top:8px;right:8px;border:0;background:none;color:#fff;opacity:.7;font-size:18px;cursor:pointer}
 .toasts{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);display:grid;gap:8px;z-index:80}
 .toast{display:flex;align-items:center;gap:10px;background:var(--ink);color:#fff;padding:10px 16px 10px 10px;border-radius:13px;font-weight:550;font-size:13.5px;box-shadow:0 18px 40px -12px rgba(11,12,15,.45);animation:tin .4s var(--ease);position:relative;overflow:hidden}
 .toast:after{content:"";position:absolute;left:0;bottom:0;height:2px;background:var(--brand);animation:tbar 3.4s linear forwards}
@@ -765,7 +788,8 @@ function apply(data) {
 async function refresh() { apply(await fetchAll()); }
 function shell() {
   app.innerHTML = '<div class="top"><a class="brand" href="#" data-home><img src="' + WORDMARK + '" alt="Easyleads"></a><div class="sub">Client console<small>Team</small></div><div class="sp"></div>' +
-    '<span class="live"><i></i>Live</span>' + (ME ? '<span class="who"><b>' + esc(initials(ME.name || ME.email)) + '</b>' + esc(ME.name || ME.email) + '</span>' : '') + '<button class="btn sm ghost" data-fsync>' + I.refresh + 'Forms sync</button><button class="btn sm ghost" data-team>' + I.user + 'Team</button><button class="btn sm ghost" data-out>' + I.out + 'Sign out</button></div>' +
+    '<span class="live"><i></i>Live</span>' + (ME ? '<span class="who"><b>' + esc(initials(ME.name || ME.email)) + '</b>' + esc(ME.name || ME.email) + '</span>' : '') + '<div class="cb" data-cb><button class="cb-btn" type="button" data-cbbtn aria-label="New form submissions" title="New form submissions"><svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="cb-n" hidden>0</span></button><div class="cb-panel" hidden></div></div>' +
+    '<button class="btn sm ghost" data-fsync>' + I.refresh + 'Forms sync</button><button class="btn sm ghost" data-team>' + I.user + 'Team</button><button class="btn sm ghost" data-out>' + I.out + 'Sign out</button></div>' +
     '<main><div class="hero"><div><div class="eyebrow"><i></i>Client console</div><h1>Your clients</h1><p>Connect an Easyleads account or a website once, then give each client a login to their own read-only dashboard.</p></div>' +
     '<div class="acts"><button class="btn pri" data-new>' + I.plus + 'New client</button><button class="btn" data-login>' + I.user + 'New login</button><button class="btn" data-copy>' + I.link + 'Copy login link</button><button class="btn" data-recheck>' + I.refresh + 'Re-check all</button></div></div>' +
     '<div class="stats" data-stats>' + ['Easyleads accounts', 'Website clients', 'Client logins', 'Active this week', 'Need data access'].map((l, k) => '<div class="stat' + (k === 4 ? ' warn' : '') + '"><div class="l"><i></i>' + l + '</div><div class="v" data-sv="' + k + '">0</div></div>').join('') + '</div>' +
@@ -774,6 +798,7 @@ function shell() {
   $('[data-out]').onclick = () => { toast('Signed out'); signOut(); };
   $('[data-team]').onclick = () => teamPanel();
   $('[data-fsync]').onclick = () => fsPanel();
+  bellInit();
   $('[data-home]').onclick = e => { e.preventDefault(); window.scrollTo({ top: 0 }); };
   $('[data-new]').onclick = () => clientForm();
   $('[data-login]').onclick = () => userForm(null);
@@ -852,6 +877,88 @@ function card(c, idx) {
       '<button class="btn sm" data-ux="as" title="Open the dashboard as this client">' + I.eye + 'Open</button><div class="menu"><button class="btn sm ghost icon" data-more>' + I.dots + '</button><div class="dd">' + (c.connected ? '<button data-ux="ghl">' + I.key + 'Easyleads access</button>' : '') + '<button data-ux="edit">' + I.edit + 'Edit login</button><button data-ux="toggle">' + I.power + (u.disabled ? 'Turn back on' : 'Turn off') + '</button><button data-ux="signout">' + I.out + 'Sign out everywhere</button><hr><button data-ux="del" class="bad">' + I.trash + 'Delete login</button></div></div></div>').join('') + '</div>' +
     '<button class="addlogin" data-x="login">' + I.plus + (us.length ? 'Add another login' : 'Create their login') + '</button></div></div>';
 }
+/* ---------- Bell: new website-form submissions ----------
+   Every website client with the snippet (WordPress, Concrete or any site) sends
+   its forms here the moment someone submits. The console asks every 20 seconds,
+   also while the tab is in the background (browsers slow that to about once a
+   minute), and shows a pop-up, a desktop notification and the count on the tab.
+   Seen submissions are remembered per teammate in this browser. */
+const BELL = { rows: [], seen: null, first: true, timer: null, busy: false, err: '' };
+const bellKey = () => 'el_bell_seen_' + ((ME && ME.email) || 'team');
+const bellSeen = () => { if (BELL.seen) return BELL.seen; try { BELL.seen = JSON.parse(localStorage.getItem(bellKey()) || 'null'); } catch (e) {} return BELL.seen; };
+const bellSave = () => { try { localStorage.setItem(bellKey(), JSON.stringify({ ids: BELL.seen.ids.slice(-500) })); } catch (e) {} };
+const bellUnread = () => { const s = bellSeen(); return s ? BELL.rows.filter(r => s.ids.indexOf(r.id) < 0) : []; };
+function bellPaint() {
+  const box = $('[data-cb]'); if (!box) return;
+  const n = bellUnread().length, b = $('.cb-n', box);
+  b.hidden = !n; b.textContent = n > 9 ? '9+' : String(n);
+  $('[data-cbbtn]', box).title = n ? n + ' new form submission' + (n === 1 ? '' : 's') : 'New form submissions';
+  try { const base = document.title.replace(/^\(\d+\+?\) /, ''); document.title = (n ? '(' + (n > 99 ? '99+' : n) + ') ' : '') + base; } catch (e) {}
+  const panel = $('.cb-panel', box);
+  if (panel.hidden) return;
+  const un = new Set(bellUnread().map(r => r.id));
+  panel.innerHTML = '<div class="cb-h"><div><b>Website form submissions</b><small>Every website client with the snippet · last 14 days</small></div>' + (un.size ? '<button type="button" data-cball>Mark all seen</button>' : '') + '</div>' +
+    (BELL.err && !BELL.rows.length ? '<div class="cb-empty">' + esc(BELL.err) + '</div>'
+      : BELL.rows.length ? '<ul class="cb-list">' + BELL.rows.slice(0, 60).map(r => '<li class="' + (un.has(r.id) ? 'new' : '') + '"><b>' + esc(r.client) + ' · ' + esc(r.form) + '</b>' +
+        '<span class="m">' + esc([r.name, r.email, r.phone].filter(Boolean).join(' · ') || 'No contact details') + (r.message ? ' — ' + esc(r.message) : '') + '</span>' +
+        '<span class="t">' + esc(since(r.at)) + (r.channel ? ' · ' + esc(r.channel) : '') + (r.page ? ' · ' + esc(r.page) : '') + '</span></li>').join('') + '</ul>'
+      : '<div class="cb-empty">No website form submissions in the last 14 days.</div>');
+  const all = $('[data-cball]', panel);
+  if (all) all.onclick = e => { e.stopPropagation(); bellSeen().ids = bellSeen().ids.concat(BELL.rows.map(r => r.id)); bellSave(); bellPaint(); };
+}
+function bellPop(fresh) {
+  const f = fresh[0], title = fresh.length === 1 ? 'New form submission' : fresh.length + ' new form submissions';
+  const line = f.client + ' · ' + f.form + (f.name ? ' · ' + f.name : '');
+  let pop = $('.cb-pop');
+  if (!pop) { pop = document.createElement('div'); pop.className = 'cb-pop'; document.body.appendChild(pop); }
+  pop.innerHTML = '<b>' + esc(title) + '</b><span>' + esc(line) + '</span><button type="button" aria-label="Dismiss">×</button>';
+  pop.hidden = false;
+  pop.onclick = e => { pop.hidden = true; if (!e.target.closest('button')) bellOpen(true); };
+  clearTimeout(BELL.popT); BELL.popT = setTimeout(() => { pop.hidden = true; }, 20000);
+  const btn = $('[data-cbbtn]'); if (btn) { btn.classList.remove('ring'); void btn.offsetWidth; btn.classList.add('ring'); }
+  try {
+    if (window.Notification && Notification.permission === 'granted' && (document.hidden || !document.hasFocus())) {
+      const n = new Notification(title, { body: line, tag: 'el-form-' + f.id });
+      n.onclick = () => { try { window.focus(); } catch (e) {} n.close(); bellOpen(true); };
+    }
+  } catch (e) {}
+}
+async function bellPoll() {
+  if (BELL.busy || !KEY) return;
+  BELL.busy = true;
+  try {
+    const j = await call('elBell');
+    const before = new Set(BELL.rows.map(r => r.id));
+    BELL.rows = (j.rows || []).filter(r => r && r.id);
+    BELL.err = '';
+    if (!bellSeen()) { BELL.seen = { ids: BELL.rows.filter(r => Date.now() - r.at > 864e5).map(r => r.id) }; bellSave(); }
+    const fresh = BELL.rows.filter(r => !before.has(r.id) && bellSeen().ids.indexOf(r.id) < 0);
+    if (!BELL.first && fresh.length) bellPop(fresh);
+    BELL.first = false;
+  } catch (e) { BELL.err = e.auth ? 'Sign in again to see submissions.' : 'Submissions couldn’t be loaded right now.'; }
+  BELL.busy = false;
+  bellPaint();
+}
+function bellOpen(force) {
+  const box = $('[data-cb]'); if (!box) return;
+  const panel = $('.cb-panel', box);
+  if (!force && !panel.hidden) { panel.hidden = true; return; }
+  panel.hidden = false; bellPaint();
+  try { if (window.Notification && Notification.permission === 'default') Notification.requestPermission(); } catch (e) {}
+  /* Opening the list marks what's in it as seen, after a moment so the new ones stay highlighted while you look. */
+  setTimeout(() => { if (panel.hidden) return; const s = bellSeen(); if (!s) return; s.ids = s.ids.concat(BELL.rows.map(r => r.id).filter(id => s.ids.indexOf(id) < 0)); bellSave(); const n = $('.cb-n', box); n.hidden = true; try { document.title = document.title.replace(/^\(\d+\+?\) /, ''); } catch (e) {} }, 2500);
+}
+function bellInit() {
+  const box = $('[data-cb]'); if (!box) return;
+  $('[data-cbbtn]', box).onclick = e => { e.stopPropagation(); bellOpen(false); };
+  if (BELL.timer) { bellPaint(); return; }  /* already running; the top bar was just redrawn */
+  document.addEventListener('click', e => { const p = $('.cb-panel'); if (p && !p.hidden && !e.target.closest('[data-cb]')) p.hidden = true; });
+  BELL.timer = setInterval(bellPoll, 20000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) bellPoll(); });
+  window.addEventListener('focus', () => bellPoll());
+  bellPoll();
+}
+
 /* ---------- Forms sync ----------
    Website clients' forms arrive instantly through the snippet. Easyleads clients'
    forms are pulled from Easyleads every hour by the backend (and right away with
